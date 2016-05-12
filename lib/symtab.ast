@@ -1,0 +1,1522 @@
+/*
+   Copyright (C) 2011 Andreas Franz Borchert
+   ----------------------------------------------------------------------------
+   The Astl Library for C is free software; you can redistribute it
+   and/or modify it under the terms of the GNU Library General Public
+   License as published by the Free Software Foundation; either version
+   2 of the License, or (at your option) any later version.
+
+   The AST Library is distributed in the hope that it will be
+   useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+   of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+   Library General Public License for more details.
+
+   You should have received a copy of the GNU Library General Public
+   License along with this library; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+*/
+
+import ops;
+
+/* Construction of a symbol table for the C programming language */
+
+opset blocks = ["translation_unit" "function_definition" "compound_statement"];
+
+/*
+   top level type declaration nodes where we have
+   a specifier-qualifier list (left operand) and an
+   abstract declarator or a list of declarators (right operand);
+   please note that function definitions are mapped into
+   declaration nodes
+*/
+opset decls = ["declaration" "type_name" "struct_declaration"
+   "parameter_declaration"];
+opset type_qualifier_targets = [decls
+   "type_qualifier_list" "type_qualifier_and_attribute_specifier_list"];
+opset attribute_specifier_targets = ["attribute_specifier_list"
+   "type_qualifier_and_attribute_specifier_list"];
+opset declarators = ["declarator" "abstract_declarator"];
+opset direct_declarators = ["direct_declarator" "direct_abstract_declarator"];
+opset struct_or_union = ["struct" "union"];
+opset struct_or_union_name = ["struct_name" "union_name"];
+opset pointers = ["pointer" "pointer_with_attributes"];
+
+attribution rules {
+   (blocks *) as block -> pre {
+      block.decls = {};
+      block.level = 0;
+      block.up = null;
+      // special name spaces
+      block.types = {
+	 struct -> {},
+	 union -> {},
+	 enum -> {},
+      };
+   };
+   ("translation_unit" *) as block -> pre {
+      var t = {kind -> "builtin", name -> "__builtin_va_list",
+	 qualifiers -> {}};
+      // __builtin_va_list is predefined by gcc and
+      // used within <stdlib.h> and other standard headers
+      block.decls{"__builtin_va_list"} = {
+	 class -> "type",
+	 name -> "__builtin_va_list",
+	 t -> t
+      };
+   };
+   (blocks *) as inner_block in (blocks *) as outer_block -> pre {
+      inner_block.level = outer_block.level + 1;
+      inner_block.up = outer_block;
+   };
+}
+
+/*
+   lookup named references to structs, unions, or enums
+*/
+sub lookup_typeref {
+   var block = args[0];
+   var kind = args[1];
+   var name = args[2];
+   while (block) {
+      if (exists block.types{kind}{name}) {
+	 return block.types{kind}{name};
+      }
+      block = block.up;
+   }
+   return null;
+}
+
+sub insert_typeref {
+   var block = args[0];
+   var t = args[1];
+   assert(exists t.name);
+   block.types{t.kind}{t.name} = t;
+}
+
+sub lookup {
+   var block = args[0];
+   var name = args[1];
+   while (block) {
+      if (exists block.decls{name}) {
+	 return block.decls{name};
+      }
+      block = block.up;
+   }
+   return null;
+}
+
+sub lookup_type {
+   var obj = lookup(args[0], args[1]);
+   if (obj && obj.class == "type") {
+      return obj.t;
+   } else {
+      return null;
+   }
+}
+
+sub insert_object {
+   var block = args[0];
+   var obj = args[1];
+   block.decls{obj.name} = obj;
+}
+
+/* return type of int whenever an explicit type was not given
+   and needs to be inserted (in K&R style declarations) */
+sub get_int_type {
+   return {kind -> "integer", kind_final -> 1, name -> "int"};
+}
+
+sub get_ptr_diff_type {
+   return {kind -> "integer", kind_final -> 1, name -> "ptrdiff_t"};
+}
+
+sub get_double_type {
+   return {kind -> "real", size -> "double", kind_final -> 1,
+      name -> "double"};
+}
+
+sub get_void_type {
+   return {kind -> "void", kind_final -> 1, name -> "void"};
+}
+
+/*
+   debug_type returns a string which dumps the type structure of
+   its argument; this is useful for debugging purposes only
+*/
+sub debug_type {
+   var t = args[0];
+   if (!t) {
+      return "{null}";
+   }
+   if (type(t) != "dictionary") {
+      return "{invalid: " & type(t) & "}";
+   }
+   var s = "";
+   var pointer = false;
+   if (exists t.kind) {
+      s &= t.kind;
+      if (t.kind == "pointer") {
+	 pointer = true;
+      }
+   }
+   s &= "{";
+   var first = true;
+   foreach (field, value) in (t) {
+      if (field != "kind" && field != "members") {
+	 if (first) {
+	    first = false;
+	 } else {
+	    s &= ", ";
+	 }
+	 s &= field & " -> ";
+	 if (field == "rtype") {
+	    if (pointer && exists value.kind &&
+		  (value.kind == "struct" || value.kind == "union")) {
+	       s &= type_to_string(value);
+	    } else {
+	       s &= debug_type(value);
+	    }
+	 } elsif (field == "parameters") {
+	    var first = true;
+	    s &= "(";
+	    foreach param in (value) {
+	       if (first) {
+		  first = false;
+	       } else {
+		  s &= ", ";
+	       }
+	       if (exists param.name && exists param.t) {
+		  s &= param.name & ": " & debug_type(param.t);
+	       } elsif (exists param.t) {
+		  s &= debug_type(param.t);
+	       } elsif (exists param.name) {
+		  s &= param.name;
+	       } elsif (exists param.varargs) {
+		  s &= "...";
+	       }
+	    }
+	    s &= ")";
+	 } elsif (field == "list") {
+	    var first = true;
+	    s &= "{";
+	    foreach list in (value) {
+	       foreach member in (list) {
+		  if (first) {
+		     first = false;
+		  } else {
+		     s &= "; ";
+		  }
+		  if (exists member.name) {
+		     s &= member.name & ": ";
+		  }
+		  s &= debug_type(member.t);
+	       }
+	    }
+	    s &= "}";
+	 } elsif (field == "enumerators") {
+	    s &= " {";
+	    var first = true;
+	    foreach enumerator in (value) {
+	       if (first) {
+		  first = false;
+	       } else {
+		  s &= ", ";
+	       }
+	       s &= enumerator.name;
+	       if (exists enumerator.expr) {
+		  s &= "=" & gentext(enumerator.expr);
+	       }
+	    }
+	    s &= "}";
+	 } elsif (field == "attributes") {
+	    s &= "{";
+	    var first = true;
+	    foreach (atname, atval) in (value) {
+	       if (first) {
+		  first = false;
+	       } else {
+		  s &= ", ";
+	       }
+	       s &= atname;
+	       if (type(atval) == "list") {
+		  var first = true;
+		  foreach element in (atval) {
+		     if (first) {
+			first = false;
+		     } else {
+			s &= ", ";
+		     }
+		     s &= gentext(element);
+		  }
+	       }
+	    }
+	    s &= "}";
+	 } elsif (type(value) == "tree") {
+	    s &= gentext(value);
+	 } else {
+	    s &= value;
+	 }
+      }
+   }
+   s &= "}";
+   return s;
+}
+
+/* auxiliary function of type_to_string() */
+sub attributes_to_string {
+   var t = args[0];
+   assert(t.kind = "attributed");
+   var s = "__attribute__ ((";
+   var first = true;
+   foreach (name, value) in (t.attributes) {
+      if (first) {
+	 first = false;
+      } else {
+	 s &= ", ";
+      }
+      s &= name;
+      if (type(value) == "list") {
+	 s &= "(";
+	 var first = true;
+	 foreach member in (value) {
+	    if (first) {
+	       first = false;
+	    } else {
+	       s &= ", ";
+	    }
+	    s &= gentext(member);
+	 }
+	 s &= ")";
+      }
+   }
+   s &= ")) ";
+   return s;
+}
+
+/*
+   type_to_string returns a string in abstract declarator syntax
+*/
+sub type_to_string {
+   var t = args[0];
+   var ad;
+   if (len(args) > 1) {
+      ad = args[1]; // string representing an abstract declarator
+   }
+   var s = "";
+   if (t.kind == "pointer") {
+      while (t.kind == "pointer" ||
+	    t.kind == "attributed" &&
+	       exists t.rtype && t.rtype && t.rtype.kind == "pointer") {
+	 if (t.kind == "pointer") {
+	    s &= "*";
+	    foreach qualifier in (t.qualifiers) {
+	       s &= " " & qualifier;
+	    }
+	 } else {
+	    s &= " " & attributes_to_string(t);
+	 }
+	 t = t.rtype;
+      }
+      if (defined(ad)) {
+	 s &= ad;
+      }
+      s = type_to_string(t, s);
+   } elsif (t.kind == "attributed") {
+      s &= attributes_to_string(t);
+      if (defined(ad)) {
+	 s &= ad;
+      }
+      s = type_to_string(t.rtype, s);
+   } elsif (t.kind == "array") {
+      if (defined(ad)) {
+	 s &= ad;
+      }
+      while (t.kind == "array") {
+	 s &= "[";
+	 if (exists t.static) {
+	    s &= "static ";
+	 }
+	 foreach qualifier in (t.qualifiers) {
+	    s &= qualifier & " ";
+	 }
+	 if (exists t.size) {
+	    s &= gentext(t.size);
+	 } elsif (exists t.dynarray) {
+	    s &= "*";
+	 }
+	 s &= "]";
+	 t = t.rtype;
+      }
+      s = type_to_string(t, s);
+   } elsif (t.kind == "function") {
+      s = type_to_string(t.rtype);
+      if (defined(ad)) {
+	 s &= " (" & ad & ")";
+      }
+      s &= "(";
+      if (exists t.parameters) {
+	 if (t.krstyle) {
+	    var first = true;
+	    foreach param in (t.parameters) {
+	       if (first) {
+		  first = false;
+	       } else {
+		  s &= ", ";
+	       }
+	       s &= param.name;
+	    }
+	 } else {
+	    var first = true;
+	    foreach param in (t.parameters) {
+	       if (first) {
+		  first = false;
+	       } else {
+		  s &= ", ";
+	       }
+	       if (exists param.varargs) {
+		  s &= "...";
+	       } else {
+		  s &= type_to_string(param.t);
+	       }
+	    }
+	 }
+      }
+      s &= ")";
+   } elsif (t.kind == "struct" || t.kind == "union") {
+      s &= t.kind;
+      if (exists t.name) {
+	 s &= " " & t.name;
+      } elsif (exists t.list) {
+	 s &= " {";
+	 foreach element in (t.list) {
+	    foreach member in (element) {
+	       if (exists member.name) {
+		  s &= type_to_string(member.t, member.name);
+	       } else {
+		  s &= type_to_string(member.t);
+	       }
+	       s &= "; ";
+	    }
+	 }
+	 s &= "}";
+      }
+      if (defined(ad)) {
+	 s &= " " & ad;
+      }
+   } elsif (t.kind == "enum") {
+      s &= t.kind;
+      if (exists t.name) {
+	 s &= " " & t.name;
+      } elsif (exists t.enumerators) {
+	 s &= " {";
+	 var first = true;
+	 foreach enumerator in (t.enumerators) {
+	    if (first) {
+	       first = false;
+	    } else {
+	       s &= ", ";
+	    }
+	    s &= enumerator.name;
+	    if (exists enumerator.expr) {
+	       s &= "=" & gentext(enumerator.expr);
+	    }
+	 }
+	 s &= "}";
+      }
+   } elsif (t.kind == "bitfield") {
+      s &= type_to_string(t.rtype);
+      s &= " : " & gentext(t.length);
+   } elsif (t.kind == "label") {
+      s &= "__label__";
+      if (ad) {
+	 s &= " " & ad;
+      }
+   } elsif (t.kind == "va_list") {
+      s &= "__builtin_va_list";
+      if (ad) {
+	 s &= " " & ad;
+      }
+   } else {
+      foreach qualifier in (t.qualifiers) {
+	 if (s) {
+	    s &= " ";
+	 }
+	 s &= qualifier;
+      }
+      if (exists t.signed) {
+	 if (s) {
+	    s &= " ";
+	 }
+	 if (t.signed) {
+	    s &= "signed";
+	 } else {
+	    s &= "unsigned";
+	 }
+      }
+      if (exists t.size && t.size != t.name) {
+	 if (s) {
+	    s &= " ";
+	 }
+	 s &= t.size;
+      }
+      if (s) {
+	 s &= " ";
+      }
+      s &= t.name;
+      if (defined(ad)) {
+	 s &= " " & ad;
+      }
+   }
+   return s;
+}
+
+/*
+   fix_type implants basetype within the type refered to by declarator.t
+*/
+sub fix_type {
+   var basetype = args[0];
+   var declarator = args[1];
+   var t = declarator.t;
+   if (t && t != basetype) {
+      while (exists t.rtype && t.rtype) {
+	 t = t.rtype;
+      }
+      assert(t.kind != "struct");
+      t.rtype = basetype;
+   } else {
+      declarator.t = basetype;
+   }
+}
+
+sub fix_struct {
+   var struct = args[0];
+   var sdl = args[1];
+   var members = {};
+   foreach element in (sdl.list) {
+      foreach member in (element) {
+	 if (exists member.name) {
+	    members{member.name} = member;
+	 } elsif (member.t &&
+	       (member.t.kind == "struct" || member.t.kind == "union")) {
+	    /* a struct/union without a declarator gets its member list
+	       inlined within the surrounding struct/union */
+	    foreach (name, submember) in (member.t.members) {
+	       if (!exists members{name}) {
+		  members{name} = submember;
+	       }
+	    }
+	 }
+      }
+   }
+   struct.members = members;
+}
+
+sub is_integer {
+   var t = args[0];
+   return t && (t.kind == "integer" || t.kind == "enum");
+}
+
+sub is_pointer {
+   var t = args[0];
+   return t && t.kind == "pointer";
+}
+
+sub get_rank {
+   var t = args[0];
+   if (!defined(t) || !exists t.kind) {
+      return 0;
+   }
+   if (exists t.rank) {
+      return t.rank;
+   }
+   var rank;
+   if (t.kind == "integer") {
+      if (t.name == "size_t" || t.name == "ptrdiff_t") {
+	 rank = 6;
+      } elsif (!exists t.size) {
+	 rank = 4;
+      } elsif (t.size == "_Bool") {
+	 rank = 1;
+      } elsif (t.size == "char") {
+	 rank = 2;
+      } elsif (t.size == "short") {
+	 rank = 3;
+      } elsif (t.size == "long") {
+	 rank = 5;
+      } elsif (t.size == "long long") {
+	 rank = 7;
+      }
+   } elsif (t.kind == "real") {
+      if (t.size == "float") {
+	 rank = 8;
+      } elsif (t.size == "double") {
+	 rank = 9;
+      } else {
+	 rank = 9;
+      }
+   } elsif (t.kind == "enum") {
+      rank = 4; // like a regular int
+   }
+   t.rank = rank;
+   return rank;
+}
+
+sub usual_unary_conversion {
+   var t = args[0];
+   if (!defined(t) || !exists t.kind) {
+      return null;
+   }
+   if (t.kind == "bitfield") {
+      t = t.rtype;
+   }
+   if (t.kind == "array") {
+      // arrays are converted into pointers to their elements
+      return {
+	 kind -> "pointer",
+	 rtype -> t.rtype,
+	 qualifiers -> t.qualifiers
+      };
+   }
+   if (t.kind == "function") {
+      return {
+	 kind -> "pointer",
+	 rtype -> t,
+	 qualifiers -> {},
+      };
+   }
+   if (is_integer(t)) {
+      var rank = get_rank(t);
+      if (rank >= 4) {
+	 return t;
+      }
+      /* we assume here that all unsigned types with a rank less
+	 than int can be represented without loss as an int;
+	 this fails for the PDP-11 but not on any modern platform */
+      return get_int_type();
+   }
+   return t;
+}
+
+/*
+   usual type conversions for binary operators
+*/
+sub usual_binary_conversion {
+   var t1 = usual_unary_conversion(args[0]);
+   var t2 = usual_unary_conversion(args[1]);
+   if (t1 == null || t2 == null) {
+      return null;
+   }
+   get_rank(t1); get_rank(t2);
+   if (t1.rank > 0 && t2.rank > 0) { // numeric types
+      /* if any of the operands is of floating point type,
+	 take the larger type */
+      if (t1.kind == "real" || t2.kind == "real") {
+	 return t1.rank > t2.rank? t1: t2;
+      }
+      /* if we have two unsigned types, take the larger type */
+      if (exists t1.signed && exists t2.signed && !t1.signed && !t2.signed) {
+	 return t1.rank > t2.rank? t1: t2;
+      }
+      /* if we have two signed types, take the larger type */
+      if ((!exists t1.signed || t1.signed) &&
+	    (!exists t2.signed || t2.signed)) {
+	 return t1.rank > t2.rank? t1: t2;
+      }
+      /* we have a mix of signed and unsigned types,
+	 make sure t1 is unsigned, t2 is signed */
+      if (exists t1.signed) {
+	 var t = t1; t1 = t2; t2 = t;
+      }
+      /* if the signed type has a lower rank, take the unsigned type */
+      if (t2.rank < t1.rank) {
+	 return t1;
+      }
+      /* if the signed type cannot represent the values of
+	 the unsigned type take the unsigned version of the
+	 signed type;
+	 we assume that this is only the case for
+	    t1 = unsigned int, t2 = long int
+	    or if t1.rank == t2.rank
+      */
+      if (t1.rank == t2.rank || t1.rank == 4 && t2.rank == 5) {
+	 return t1;
+      }
+      /* if the signed type can represent the values of the
+	 unsigned type, then take it */
+      return t2;
+   }
+   return t1; // no conversion
+}
+
+/*
+   compute the resulting type of a binary operation;
+   note that we generally assume the correctness of the source,
+   i.e. we do not raise errors in case of invalid operations
+   but return null as resulting type
+*/
+sub compute_type_of_binary_op {
+   var leftop = args[0];
+   var rightop = args[1];
+   var op = args[2];
+   if (exists leftop.t && exists rightop.t && leftop.t && rightop.t) {
+      if ((op == "+" || op == "-") &&
+	    (leftop.t.kind == "pointer" || rightop.t.kind == "pointer")) {
+	 // pointer arithmetic
+	 var ptr_type;
+	 var other_type;
+	 var ptr_cnt;
+	 if (leftop.t.kind == "pointer") {
+	    ptr_type = leftop.t;
+	    ptr_cnt = rightop.t.kind == "pointer"? 2: 1;
+	    other_type = rightop.t;
+	 } else {
+	    other_type = leftop.t;
+	    ptr_type = rightop.t;
+	    ptr_cnt = 1;
+	 }
+	 if (!is_integer(other_type) && other_type.kind != "pointer") {
+	    return null; // other types are invalid here
+	 }
+	 if (op == "+") {
+	    if (ptr_cnt == 2) {
+	       return null; // pointers cannot be added to each other
+	    } else {
+	       return ptr_type;
+	    }
+	 } else {
+	    if (ptr_cnt == 2) {
+	       // assume that both pointers refer to the same type
+	       return get_ptr_diff_type();
+	    } else {
+	       return ptr_type;
+	    }
+	 }
+      } else {
+	 return usual_binary_conversion(leftop.t, rightop.t);
+      }
+   } else {
+      return null;
+   }
+}
+
+attribution rules {
+   (decls *) as decl in (blocks *) as block -> pre {
+      decl.block = block;
+      decl.type_qualifiers = {};
+      decl.function_specifiers = {};
+      decl.storage_class_specifiers = {};
+      decl.attributes = []; // gcc attributes
+      decl.t = {qualifiers -> {}};
+      decl.objects = [];
+   };
+
+   ("struct_declarator" (":" expr)) as sdecl
+	 in (decls *) as decl -> post {
+      sdecl.t = {kind -> "bitfield", length -> expr};
+      var obj = {astnode -> sdecl, t -> sdecl.t};
+      push(decl.objects, obj);
+   };
+   ("struct_declarator" idecl (":" expr)) as sdecl
+	 in (decls *) as decl -> post {
+      sdecl.t = {kind -> "bitfield", length -> expr, rtype -> idecl.t};
+      var obj = {astnode -> sdecl, t -> sdecl.t};
+      if (exists idecl.name) {
+	 obj.name = idecl.name;
+      }
+      push(decl.objects, obj);
+   };
+   ("struct_declarator" ("declarator" *) as idecl) as sdecl
+	 in (decls *) as decl -> post {
+      sdecl.t = idecl.t;
+      var obj = {astnode -> sdecl, t -> sdecl.t};
+      if (exists idecl.name) {
+	 obj.name = idecl.name;
+      }
+      push(decl.objects, obj);
+   };
+   ("init_declarator" declarator) as sdecl
+	 in (decls *) as decl -> post {
+      var obj = {astnode -> declarator, t -> declarator.t};
+      if (exists declarator.name) {
+	 obj.name = declarator.name;
+      }
+      push(decl.objects, obj);
+   };
+   ("init_declarator" declarator initializer) as sdel
+	 in (decls *) as decl -> post {
+      var obj = {astnode -> declarator, t -> declarator.t};
+      if (exists declarator.name) {
+	 obj.name = declarator.name;
+	 obj.initializer = initializer;
+      }
+      push(decl.objects, obj);
+   };
+
+   // initializers
+   ("initializer" ("expression" expr)) as initializer -> post {
+      initializer.t = expr.t;
+   };
+
+   (decls *) as decl in (blocks *) as block -> post {
+      foreach attr in (decl.attributes) {
+	 var t = {
+	    kind -> "attributed", 
+	    rtype -> decl.t,
+	    attributes -> attr.attributes,
+	    atnode -> attr.atnode
+	 };
+	 decl.t = t;
+      }
+      foreach obj in (decl.objects) {
+	 if (exists obj.astnode) {
+	    fix_type(decl.t, obj.astnode);
+	    obj.t = obj.astnode.t;
+	 }
+	 if (exists obj.name && obj.name) {
+	    if (!exists obj.class) {
+	       if (exists decl.storage_class_specifiers.typedef) {
+		  obj.class = "type";
+	       } else {
+		  obj.class = "var";
+	       }
+	    }
+	    insert_object(block, obj);
+	 } else {
+	    obj.class = "declaration";
+	 }
+      }
+   };
+   ("type_name" sqlist abstract_declarator) as decl -> post {
+      fix_type(decl.t, abstract_declarator);
+      decl.t = abstract_declarator.t;
+   };
+   ("declaration" *) as decl
+	 in ("function_definition" here list... body) as fdef -> post {
+      foreach obj in (decl.objects) {
+	 obj.class = "function";
+	 if (exists obj.t.krstyle) {
+	    // add parameters manually to function definition
+	    foreach parameter in (obj.t.parameters) {
+	       if (exists parameter.name) {
+		  var param = {class -> "parameter", name -> parameter.name};
+		  if (exists parameter.t) {
+		     param.t = parameter.t;
+		  } else {
+		     param.t = get_int_type();
+		  }
+		  insert_object(fdef, param);
+	       }
+	    }
+	 }
+      }
+   };
+   ("declaration" *) as decl
+	 in ("function_definition" here other...)
+	 and in (blocks *) as block -> post {
+      /* move declared functions into the global level */
+      foreach obj in (decl.objects) {
+	 if (exists obj.name) {
+	    insert_object(block, obj);
+	 }
+      };
+   };
+
+   ("parameter_declaration" specifiers declarator) as decl -> post {
+      var obj = {
+	 class -> "parameter",
+	 astnode -> declarator,
+	 t -> declarator.t
+      };
+      if (exists declarator.name) {
+	 obj.name = declarator.name;
+      }
+      push(decl.objects, obj);
+   };
+
+   // left hand side of a declaration
+   ("type_qualifier" qualifier) as sq
+	 in (type_qualifier_targets *) as decl -> post {
+      decl.t.qualifiers{qualifier} = 1;
+   };
+   ("function_specifier" specifier) as sq
+	 in (decls *) as decl -> post {
+      decl.function_specifiers{specifier} = 1;
+   };
+   ("storage_class_specifier" specifier) as sq
+	 in (decls *) as decl -> post {
+      decl.storage_class_specifiers{specifier} = 1;
+   };
+   ("void") as ts -> {
+      ts.t = get_void_type();
+   };
+   ("_Bool") as ts -> {
+      ts.t = {kind -> "integer", size -> "_Bool", kind_final -> 1,
+	 name -> "_Bool"};
+   };
+   ("char") as ts -> {
+      ts.t = {kind -> "integer", size -> "char", kind_final -> 1,
+         name -> "char"};
+   };
+   ("int") as ts -> {
+      ts.t = get_int_type();
+   };
+   ("float") as ts -> {
+      ts.t = {kind -> "real", size -> "float", kind_final -> 0,
+         name -> "float"};
+   };
+   ("double") as ts -> {
+      ts.t = {kind -> "real", size -> "double", kind_final -> 0,
+         name -> "double"};
+   };
+   ("_Complex") as ts -> {
+      ts.t = {kind -> "complex", kind_final -> 1, name -> "_Complex"};
+   };
+   ("_Imaginary") as ts -> {
+      ts.t = {kind -> "complex", kind_final -> 1, name -> "_Imaginary"};
+   };
+   ("long") as ts -> {
+      ts.t = {kind -> "integer", size -> "long", kind_final -> 0,
+	 name -> "int"};
+   };
+   ("short") as ts -> {
+      ts.t = {kind -> "integer", size -> "short", kind_final -> 1,
+         name -> "int"};
+   };
+   ("signed") as ts -> {
+      ts.t = {kind -> "integer", signed -> 1, kind_final -> 1,
+         name -> "int"};
+   };
+   ("unsigned") as ts -> {
+      ts.t = {kind -> "integer", signed -> 0, kind_final -> 1,
+         name -> "int"};
+   };
+   ("type_specifier" specifier) as sq in (decls *) as decl -> post {
+      if (exists(decl.t.kind)) {
+	 var t = decl.t;
+	 var st = specifier.t;
+	 if (st.kind != t.kind && !t.kind_final) {
+	    t.kind = st.kind;
+	 }
+	 if (st.kind_final) {
+	    t.name = st.name;
+	 }
+	 if (exists(st.size)) {
+	    if (exists(t.size) && t.size == "long") {
+	       t.size = "long " & st.size;
+	    } else {
+	       t.size = st.size;
+	    }
+	 }
+	 if (exists(st.signed)) {
+	    t.signed = st.signed;
+	 }
+      } else {
+	 if (!exists specifier.t) {
+	    println("type specifier w/o type: ", gentext(specifier), " at ", location(specifier), " where op = ", operator(specifier));
+	    specifier.t = get_int_type(); // dummy FIXME
+	 }
+	 specifier.t.qualifiers = decl.t.qualifiers;
+	 decl.t = specifier.t;
+      }
+   };
+   ("typeof" ("type_name" *) as tn) as tspec -> post {
+      tspec.t = tn.t;
+   };
+   ("typeof" expr) as tspec -> post {
+      tspec.t = expr.t;
+   };
+   ("typedef_name" name) as tdn in (decls *) as decl
+	 and in (blocks *) as block -> post {
+      var t = lookup_type(block, name);
+      if (!t) {
+	 /* check for predefined types of gcc;
+	    this should be checked against the corresponding declarations
+	    in astl-c.cpp and c-run.cpp */
+	 if (name == "__label" || name == "__label__") {
+	    t = {kind -> "label"};
+	 } elsif (name == "__builtin_va_list") {
+	    t = {kind -> "va_list"};
+	 } else {
+	    println("unknown name type identifier: ", gentext(name), " at ", location(name));
+	    // assert(t);
+	    t = get_int_type(); // dummy type, FIXME
+	 }
+      }
+      tdn.t = t;
+   };
+   // gcc extensions for attribute specifiers
+   ("attribute_parameter" expr) as decl -> post {
+      decl.params = [expr];
+   };
+   ("attribute_parameters" parameters parameter) as decl -> post {
+      decl.params = parameters.params & parameter.params;
+   };
+   ("attribute") as decl -> post {
+      decl.attributes = {};
+   };
+   ("attribute" name) as decl -> post {
+      decl.attributes = {};
+      decl.attributes{gentext(name)} = true;
+   };
+   ("attribute" name parameters) as decl -> post {
+      decl.attributes = {};
+      decl.attributes{gentext(name)} = parameters.params;
+   };
+   ("attribute_list" attributes attribute) as decl -> post {
+      decl.attributes = attributes.attributes + attribute.attributes;
+   };
+   ("attribute_specifier" atlist) as atspec
+	 in ("declaration_specifiers" *) and in (decls *) as decl -> post {
+      push(decl.attributes, {
+	 attributes -> atlist.attributes,
+	 atnode -> atlist
+      });
+   };
+   ("attribute_specifier" atlist) as atspec
+	 in (attribute_specifier_targets *) -> post {
+      atspec.attributes = atlist.attributes;
+   };
+   ("attribute_specifier_list" spec) as atspec -> post {
+      atspec.attributes = spec.attributes;
+   };
+   ("attribute_specifier_list" list spec) as atspec -> post {
+      atspec.attributes = list.attributes + spec.attributes;
+   };
+
+   ("declarator" direct_declarator) as decl -> post {
+      decl.name = direct_declarator.name;
+      decl.t = direct_declarator.t;
+   };
+   ("declarator_with_attributes" declarator atlist) as decl -> post {
+      decl.name = declarator.name;
+      var t = {
+	 kind -> "attributed",
+	 attributes -> atlist.attributes,
+	 atnode -> atlist
+      };
+      fix_type(t, declarator);
+      decl.t = declarator.t;
+   };
+   (declarators pointer direct_declarator) as decl -> post {
+      if (!exists direct_declarator.name) {
+	 println("bad/unsupported declarator: ", gentext(direct_declarator), " at ", location(direct_declarator));
+      }
+      decl.name = direct_declarator.name;
+      fix_type(pointer.t, direct_declarator);
+      decl.t = direct_declarator.t;
+   };
+
+   ("abstract_declarator" (pointers *) as pointer) as decl -> post {
+      decl.name = null;
+      decl.t = pointer.t;
+   };
+   ("abstract_declarator"
+	 ("direct_abstract_declarator" *) as ddecl) as decl -> post {
+      decl.name = null;
+      decl.t = ddecl.t;
+   };
+
+   ("type_qualifier_list" *) as tql -> pre {
+      tql.t = {qualifiers -> {}};
+   };
+   ("type_qualifier_and_attribute_specifier_list" *) as tql -> pre {
+      tql.t = {qualifiers -> {}};
+      tql.attributes = {};
+   };
+   ("type_qualifier_and_attribute_specifier_list"
+	 ("attribute_specifier" *) as attr) as tql -> post {
+      tql.attributes = attr.attributes;
+   };
+   ("type_qualifier_and_attribute_specifier_list"
+	 list ("attribute_specifier" *) as attr) as tql -> post {
+      tql.t = list.t;
+      tql.attributes = list.attributes + attr.attributes;
+   };
+   ("type_qualifier_and_attribute_specifier_list"
+	 list ("type_qualifier" *) as tq) as tql -> post {
+      tql.t.qualifiers += list.t.qualifiers;
+      tql.attributes = list.attributes;
+   };
+
+   ("pointer") as pointer -> post {
+      pointer.t = {kind -> "pointer", qualifiers -> {}};
+   };
+   ("pointer" ("type_qualifier_and_attribute_specifier_list" *) as tql)
+	 as pointer -> post {
+      var t;
+      if (tql.attributes) {
+	 t = {kind -> "attributed", attributes -> tql.attributes};
+      }
+      pointer.t = {kind -> "pointer", qualifiers -> tql.t.qualifiers};
+      if (defined(t)) {
+	 pointer.t.rtype = t;
+      }
+   };
+   ("pointer" ("pointer" *) as rtype) as pointer -> post {
+      pointer.t = {kind -> "pointer", qualifiers -> {}, rtype -> rtype.t};
+   };
+   ("pointer" ("type_qualifier_and_attribute_specifier_list" *) as tql
+	 ("pointer" *) as rtype) as pointer -> post {
+      var t = rtype.t;
+      if (tql.attributes) {
+	 t = {kind -> "attributed", attributes -> tql.attributes, rtype -> t};
+      }
+      pointer.t = {kind -> "pointer", qualifiers -> tql.t.qualifiers,
+	 rtype -> t};
+   };
+
+   // parameter lists
+   ("parameter_type_list" *) as ptl -> pre {
+      ptl.parameters = [];
+   };
+   ("parameter_declaration" specifiers declarator) as pd
+	 in ("parameter_type_list" *) as ptl -> post {
+      var parameter = {t -> pd.t};
+      if (exists declarator.name) {
+	 parameter.name = declarator.name;
+      }
+      push(ptl.parameters, parameter);
+   };
+   ("parameter_declaration" specifiers) as pd
+	 in ("parameter_type_list" *) as ptl -> post {
+      push(ptl.parameters, {t -> pd.t});
+   };
+   ("parameter_type_list" parameter_list dots) as ptl -> post {
+      push(ptl.parameters, {varargs -> 1});
+   };
+   ("identifier_list" ("identifier" id)) as idlist -> post {
+      idlist.names = [id];
+   };
+   ("identifier_list" list ("identifier" id)) as idlist -> post {
+      idlist.names = list.names & [id];
+   };
+
+   // direct declarators
+   ("direct_declarator" ("identifier" id)) as ddecl -> post {
+      ddecl.name = tokentext(id);
+      ddecl.t = null;
+   };
+   (direct_declarators ("()" declarator)) as ddecl -> post {
+      ddecl.name = declarator.name;
+      ddecl.t = declarator.t;
+   };
+   ("direct_abstract_declarator" ("[]")) as ddecl -> post {
+      ddecl.name = null;
+      ddecl.t = {kind -> "array", qualifiers -> {}};
+   };
+   (direct_declarators iddecl ("[]")) as ddecl -> post {
+      ddecl.name = iddecl.name;
+      var t = {kind -> "array", qualifiers -> {}};
+      fix_type(t, iddecl);
+      ddecl.t = iddecl.t;
+   };
+   ("direct_abstract_declarator" ("[]" ("expression" expr))) as ddecl -> post {
+      ddecl.name = null;
+      ddecl.t = {kind -> "array", size -> expr, qualifiers -> {}};
+   };
+   (direct_declarators iddecl ("[]" ("expression" expr))) as ddecl -> post {
+      ddecl.name = iddecl.name;
+      var t = {kind -> "array", size -> expr, qualifiers -> {}};
+      fix_type(t, iddecl);
+      ddecl.t = iddecl.t;
+   };
+   ("direct_declarator" iddecl
+	 ("[]" ("type_qualifier_list" *) as tql)) as ddecl -> post {
+      ddecl.name = iddecl.name;
+      var t = {kind -> "array", qualifiers -> tql.t.qualifiers};
+      fix_type(t, iddecl);
+      ddecl.t = iddecl.t;
+   };
+   ("direct_declarator" iddecl
+	 ("[]" ("type_qualifier_list" *) as tql
+	 ("expression" expr))) as ddecl -> post {
+      ddecl.name = iddecl.name;
+      var t = {kind -> "array", size -> expr, qualifiers -> tql.t.qualifiers};
+      fix_type(t, iddecl);
+      ddecl.t = iddecl.t;
+   };
+   ("direct_declarator" iddecl
+	 ("[]" ("static") ("expression" expr))) as ddecl -> post {
+      ddecl.name = iddecl.name;
+      var t = {kind -> "array", size -> expr, static -> 1, qualifiers -> {}};
+      fix_type(t, iddecl);
+      ddecl.t = iddecl.t;
+   };
+   ("direct_declarator" iddecl
+	 ("[]" ("static") ("type_qualifier_list" *) as tql
+	 ("expression" expr))) as ddecl -> post {
+      ddecl.name = iddecl.name;
+      var t = {kind -> "array", size -> expr,
+	 qualifiers -> tql.t.qualifiers, static -> 1};
+      fix_type(t, iddecl);
+      ddecl.t = iddecl.t;
+   };
+   ("direct_abstract_declarator" ("[]" ("*"))) as ddecl -> post {
+      ddecl.name = null;
+      ddecl.t = {kind -> "array", dynarray -> 1, qualifiers -> {}};
+   };
+   (direct_declarators iddecl ("[]" ("*"))) as ddecl -> post {
+      ddecl.name = iddecl.name;
+      var t = {kind -> "array", dynarray -> 1, qualifiers -> {}};
+      fix_type(t, iddecl);
+      ddecl.t = iddecl.t;
+   };
+   ("direct_declarator" iddecl
+	 ("[]" ("type_qualifier_list" *) as tql ("*"))) as ddecl -> post {
+      ddecl.name = iddecl.name;
+      var t = {kind -> "array", dynarray -> 1, qualifiers -> tql.t.qualifiers};
+      fix_type(t, iddecl);
+      ddecl.t = iddecl.t;
+   };
+   ("direct_abstract_declarator"
+	 ("()" ("parameter_type_list" *) as paramlist)) as ddecl -> post {
+      ddecl.name = null;
+      ddecl.t = {kind -> "function", parameters -> paramlist.parameters};
+   };
+   (direct_declarators iddecl
+	 ("()" ("parameter_type_list" *) as paramlist)) as ddecl -> post {
+      ddecl.name = iddecl.name;
+      var t = {kind -> "function", parameters -> paramlist.parameters};
+      fix_type(t, iddecl);
+      ddecl.t = iddecl.t;
+   };
+   ("direct_abstract_declarator" ("()")) as ddecl -> post {
+      ddecl.name = null;
+      ddecl.t = {kind -> "function"};
+   };
+   (direct_declarators iddecl ("()")) as ddecl -> post {
+      ddecl.name = iddecl.name;
+      var t = {kind -> "function"};
+      fix_type(t, iddecl);
+      ddecl.t = iddecl.t;
+   };
+   ("direct_declarator" iddecl
+	 ("()" ("identifier_list" *) as idlist)) as ddecl -> post {
+      var parameters = [];
+      foreach id in (idlist.names) {
+	 // parameters w/o type are assumed to be int (K&R style)
+	 push(parameters, {name -> id, t -> get_int_type()});
+      }
+      ddecl.name = iddecl.name;
+      var t = {kind -> "function", parameters -> parameters, krstyle -> 1};
+      fix_type(t, iddecl);
+      ddecl.t = iddecl.t;
+   };
+   ("direct_declarator_with_attributes" iddecl atlist) as ddecl -> post {
+      ddecl.name = iddecl.name;
+      var t = {
+	 kind -> "attributed",
+	 attributes -> atlist.attributes,
+	 atnode -> atlist
+      };
+      fix_type(t, iddecl);
+      ddecl.t = iddecl.t;
+   };
+
+   // structs and unions
+   ("struct_declaration_list") as sdl -> post {
+      sdl.list = [];
+   };
+   ("struct_declaration_list" declaration) as sdl -> post {
+      sdl.list = [declaration.objects];
+   };
+   ("struct_declaration_list" list declaration) as sdl -> post {
+      sdl.list = list.list & [declaration.objects];
+   };
+   (struct_or_union ("struct_declaration_list" *) as sdl) as struct -> post {
+      fix_struct(struct, sdl);
+      struct.t = {
+	 kind -> operator(struct),
+	 members -> struct.members,
+	 list -> sdl.list
+      };
+   };
+   (struct_or_union
+	 (struct_or_union_name ("identifier" id)) sdl) as struct
+	 in (blocks *) as block -> post {
+      fix_struct(struct, sdl);
+      var kind = operator(struct);
+      var t = lookup_typeref(block, kind, id);
+      if (t) {
+	 struct.t = t;
+	 t.members = struct.members;
+	 t.list = sdl.list;
+      } else {
+	 struct.t = {kind -> kind, name -> id,
+	    members -> struct.members, list -> sdl.list};
+	 insert_typeref(block, struct.t);
+      }
+   };
+   (struct_or_union
+	 (struct_or_union_name ("identifier" id))) as struct
+	 in (blocks *) as block -> post {
+      var kind = operator(struct);
+      var t = lookup_typeref(block, kind, id);
+      if (t) {
+	 struct.t = t;
+      } else {
+	 struct.t = {kind -> kind, name -> id};
+	 insert_typeref(block, struct.t);
+      }
+   };
+   // special case of struct declarations w/o a named object
+   ("struct_declaration" struct_or_union_specifier) as decl -> post {
+      var obj = {
+	 t -> struct_or_union_specifier.t
+      };
+      push(decl.objects, obj);
+   };
+   // gcc attributes extension
+   ("struct_or_union_specifier_with_attributes" struct atlist)
+	 as atstruct -> post {
+      atstruct.t = struct.t;
+      atstruct.t{attributes} = atlist.attributes;
+   };
+
+   ("enum" *) as enum -> pre {
+      enum.enumerators = [];
+   };
+   ("enumerator" ("identifier" id)) as enumerator
+	 in ("enum" *) as enum -> post {
+      push(enum.enumerators, {name -> id, astnode -> enumerator});
+   };
+   ("enumerator" ("identifier" id) expr) as enumerator
+	 in ("enum" *) as enum -> post {
+      push(enum.enumerators, {name -> id, expr -> expr,
+         astnode -> enumerator});
+   };
+   ("enum" ("enumerator_list" *)) as enum
+	 in (blocks *) as block -> post {
+      enum.t = {kind -> enum, enumerators -> enum.enumerators};
+      foreach enumerator in (enum.enumerators) {
+	 var obj = {class -> "const", t -> enum.t, name -> enumerator.name,
+	    astnode -> enumerator.astnode};
+	 insert_object(block, obj);
+      }
+   };
+   ("enum" ("enum_name" ("identifier" id)) list) as enum
+	 in (blocks *) as block -> post {
+      var t = lookup_typeref(block, "enum", id);
+      if (t) {
+	 t.enumerators = enum.enumerators;
+      } else {
+	 t = {kind -> "enum", name -> id, enumerators -> enum.enumerators};
+	 insert_typeref(block, t);
+      }
+      enum.t = t;
+      foreach enumerator in (enum.enumerators) {
+	 var obj = {class -> "const", t -> t, name -> enumerator.name,
+	    astnode -> enumerator.astnode};
+	 insert_object(block, obj);
+      }
+   };
+   ("enum" ("enum_name" ("identifier" id))) as enum
+	 in (blocks *) as block -> post {
+      var t = lookup_typeref(block, "enum", id);
+      if (t) {
+	 enum.t = t;
+      } else {
+	 enum.t = {kind -> "enum", name -> id};
+	 insert_typeref(block, enum.t);
+      }
+   };
+   ("enum_specifier_with_attributes" enum atlist) as atenum -> post {
+      atenum.t = enum.t;
+      atenum.t{attributes} = atlist.attributes;
+   };
+
+   // types of expressions
+   ("identifier" id) as ident in (blocks *) as block -> {
+      ident.object = lookup(block, id);
+      if (ident.object) {
+	 ident.t = ident.object.t;
+      }
+   };
+   ("integer_constant" decimal) as const -> {
+      const.t = get_int_type();
+   };
+   ("octal_constant" octal) as const -> {
+      const.t = get_int_type();
+   };
+   ("hexadecimal_constant" hex) as const -> {
+      const.t = get_int_type();
+   };
+   ("character_constant" char) as const -> {
+      const.t = get_int_type();
+   };
+   ("floating_constant" literal) as const -> {
+      const.t = get_double_type();
+   };
+   ("string_literal" *) as const -> {
+      const.t = {
+	 kind -> "pointer",
+	 qualifiers -> {},
+	 rtype -> {
+	    kind -> "integer",
+	    size -> "char",
+	    kind_final -> 1,
+	    name -> "char",
+	    qualifiers -> {const -> 1}
+	 }
+      };
+   };
+   ("[]" array index) as expr -> post {
+      if (exists array.t && array.t &&
+	    (array.t.kind == "array" || array.t.kind == "pointer")) {
+	 expr.t = array.t.rtype;
+      } else {
+	 expr.t = null;
+      }
+   };
+   ("{}" type_name initializer...) as expr -> post {
+      if (exists type_name.t) {
+	 expr.t = type_name.t;
+      } else {
+	 expr.t = null;
+      }
+   };
+   ("sizeof" *) as expr -> post {
+      expr.t = {kind -> "integer", kind_final -> 1, name -> "size_t"};
+   };
+   (["~" "!" "unary-" "unary+"] op) as expr -> post {
+      if (exists op.t) {
+	 expr.t = usual_unary_conversion(op.t);
+      } else {
+	 expr.t = null;
+      }
+   };
+   ("&" op) as expr -> post {
+      if (exists op.t && op.t) {
+	 expr.t = {
+	    kind -> "pointer",
+	    rtype -> op.t,
+	    qualifiers -> {}
+	 };
+      } else {
+	 expr.t = null;
+      }
+   };
+   ("pointer_dereference" op) as expr -> post {
+      if (exists op.t && op.t && op.t.kind == "pointer") {
+	 expr.t = op.t.rtype;
+      } else {
+	 expr.t = null;
+      }
+   };
+   ("cast_expression" type_name value) as expr -> post {
+      if (exists type_name.t) {
+	 expr.t = type_name.t;
+      } else {
+	 expr.t = null;
+      }
+   };
+   ("function_call" f args...) as expr -> post {
+      if (exists f.t && f.t) {
+	 var t = f.t;
+	 if (f.t.kind == "pointer") {
+	    t = f.t.rtype;
+	 }
+	 if (t && t.kind == "function") {
+	    expr.t = t.rtype;
+	 } else {
+	    expr.t = null;
+	 }
+      } else {
+	 // undeclared functions are assumed to return int
+	 expr.t = get_int_type();
+      }
+   };
+   ("." value ("identifier" ident)) as expr -> post {
+      if (exists value.t && value.t &&
+	    (value.t.kind == "struct" || value.t.kind == "union") &&
+	    exists value.t.members{ident}) {
+	 expr.t = value.t.members{ident}.t;
+      } else {
+	 expr.t = null;
+      }
+   };
+   ("->" value ("identifier" ident)) as expr -> post {
+      if (exists value.t && value.t &&
+	    (value.t.kind == "pointer" || value.t.kind == "array")) {
+	 var t = value.t.rtype;
+	 if (t && (t.kind == "struct" || t.kind == "union")) {
+	    expr.t = t.members{ident}.t;
+	 } else {
+	    expr.t = null;
+	 }
+      } else {
+	 expr.t = null;
+      }
+   };
+   (["postfix++" "postfix--" "prefix++" "prefix--"] lvalue) as expr -> post {
+      if (exists lvalue.t) {
+	 expr.t = lvalue.t;
+      } else {
+	 expr.t = null;
+      }
+   };
+   ([arithmetic_operators binary_operators] op1 op2) as expr -> post {
+      expr.t = compute_type_of_binary_op(op1, op2, operator(expr));
+   };
+   (["<<" ">>"] op1 op2) as expr -> post {
+      if (exists op1.t) {
+	 expr.t = usual_unary_conversion(op1.t);
+      } else {
+	 expr.t = null;
+      }
+   };
+   ([logical_operators comparison_operators] op1 op2) as expr -> post {
+      expr.t = get_int_type();
+   };
+   ([assignment_operators] lvalue rvalue) as expr -> post {
+      if (exists lvalue.t) {
+	 expr.t = lvalue.t;
+      } else {
+	 expr.t = null;
+      }
+   };
+   ("," op1 op2) as expr -> post {
+      if (exists op2.t) {
+	 expr.t = op2.t;
+      } else {
+	 expr.t = null;
+      }
+   };
+   ("conditional_expression" cond expr1 expr2) as expr -> post {
+      if (exists expr1.t && exists expr2.t) {
+	 if (get_rank(expr1.t) > 0 && get_rank(expr2.t) > 0) {
+	    expr.t = compute_type_of_binary_op(expr1, expr2, operator(expr));
+	 } elsif (expr1.t && expr1.t.kind == "pointer") {
+	    expr.t = expr1.t;
+	 } elsif (expr2.t && expr2.t.kind == "pointer") {
+	    expr.t = expr2.t;
+	 } else {
+	    expr.t = expr1.t;
+	 }
+      } else {
+	 expr.t = null;
+      }
+   };
+   (["condition" "expression" "expression_statement"] e) as expr -> post {
+      if (exists e.t) {
+	 expr.t = e.t;
+      } else {
+	 expr.t = null;
+      }
+   };
+   ("statement_expression"
+	 ("compound_statement" stmts...
+	    ("expression_statement" last_expr))) as expr -> post {
+      expr.t = last_expr.t;
+   };
+   ("statement_expression" *) as expr -> post {
+      if (!exists expr.t) {
+	 expr.t = get_void_type();
+      }
+   };
+   ("expression" e) as expr -> post {
+      if (exists e.t) {
+	 expr.t = e.t;
+      }
+   };
+}

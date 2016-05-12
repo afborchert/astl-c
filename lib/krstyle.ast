@@ -1,0 +1,124 @@
+/*
+   Copyright (C) 2011 Andreas Franz Borchert
+   ----------------------------------------------------------------------------
+   The Astl Library for C is free software; you can redistribute it
+   and/or modify it under the terms of the GNU Library General Public
+   License as published by the Free Software Foundation; either version
+   2 of the License, or (at your option) any later version.
+
+   The Astl Library for C is distributed in the hope that it will be
+   useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+   of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+   Library General Public License for more details.
+
+   You should have received a copy of the GNU Library General Public
+   License along with this library; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+*/
+
+/* transformation rules to transform Kernighan/Ritchie style
+   function definitions into those that conform with ISO-C */
+
+inplace transformation rules transform_krstyle_to_std {
+   ("identifier" id) as ident
+	 !in ("parameter_declaration" *) and
+	 in ("identifier_list" *) and
+	 in ("function_definition" here
+	    declaration_list compound_statement) as fdef and
+	 in ("external_declaration" *) as edecl
+	 where ident.declared ->
+      ("parameter_declaration" { ident.specifiers } { ident.declarator });
+   ("identifier" id) as ident
+	 !in ("parameter_declaration" *) and
+	 in ("identifier_list" *) and
+	 in ("function_definition" here
+	    declaration_list compound_statement) as fdef and
+	 in ("external_declaration" *) as edecl
+	 where !ident.declared ->
+      ("parameter_declaration"
+	 ("declaration_specifiers" ("type_specifier" ("int")))
+	 ("declarator" ("direct_declarator" ident))
+      );
+   ("identifier_list" ("parameter_declaration" *) as pd)
+	 in ("function_definition" here
+	    declaration_list compound_statement) ->
+      ("parameter_list" pd);
+   ("identifier_list" ("parameter_list" *) as pl
+      ("parameter_declaration" *) as pd)
+	 in ("function_definition" here
+	    declaration_list compound_statement) ->
+      ("parameter_list" pl pd);
+   ("direct_declarator" ddecl ("()" ("parameter_list" *) as pd)) ->
+      ("direct_declarator" ddecl ("()" ("parameter_type_list" pd)));
+}
+
+inplace transformation rules finish_transformation_of_krstyle_to_std {
+   ("function_definition" declarator declaration_list compound_statement) ->
+      ("function_definition" declarator compound_statement);
+}
+
+attribution rules tag_parameters {
+   ("identifier" id) as ident
+	 in ("identifier_list" *) and
+	 in ("function_definition" here
+	    declaration_list compound_statement) as fdef and
+	 in ("external_declaration" *) as edecl ->
+      {
+	 var index = edecl.param_index{id};
+	 var param = edecl.parameters[index];
+	 var decl = param.declarator;
+	 if (decl) {
+	    ident.specifiers = decl.specifiers;
+	    ident.declarator = decl.declarator;
+	    ident.declared = true;
+	 } else {
+	    ident.declared = false;
+	    param.t = get_int_type();
+	 }
+      };
+}
+
+attribution rules standardize_krstyle {
+   ("external_declaration"
+	 ("function_definition" declarator declaration_list compound_statement)
+	    as fdef) as edecl -> pre {
+      var f;
+      foreach obj in (declarator.objects) {
+	 f = obj;
+      }
+      assert(f);
+      var t = f.t;
+      assert(t && t.kind == "function");
+      edecl.t = t;
+      edecl.parameters = t.parameters;
+      edecl.param_index = {};
+      var index = 0;
+      foreach param in (t.parameters) {
+	 edecl.param_index{param.name} = index;
+	 ++index;
+      }
+   };
+   ("declarator" *) as declarator
+	 in ("declaration" specifiers here1) as declaration and
+	 in ("function_definition" fdecl here2 compound_statement) as fdef and
+	 in ("external_declaration" *) as edecl -> post {
+      if (exists edecl.param_index{declarator.name}) {
+	 var index = edecl.param_index{declarator.name};
+	 edecl.parameters[index].declarator = {
+	    specifiers -> specifiers,
+	    declarator -> declarator
+	 };
+	 edecl.parameters[index].t = declaration.t;
+      }
+   };
+   ("external_declaration"
+	 ("function_definition" declarator declaration_list compound_statement)
+	    as fdef) as edecl -> post {
+      tag_parameters(edecl);
+      while (transform_krstyle_to_std(edecl) > 0) {}
+      finish_transformation_of_krstyle_to_std(edecl);
+      foreach obj in (declarator.objects) {
+	 delete obj.t.krstyle;
+      }
+   };
+}

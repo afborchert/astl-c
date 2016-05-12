@@ -1,0 +1,98 @@
+/*
+   Copyright (C) 2011 Andreas Franz Borchert
+   ----------------------------------------------------------------------------
+   The Astl Library for C is free software; you can redistribute it
+   and/or modify it under the terms of the GNU Library General Public
+   License as published by the Free Software Foundation; either version
+   2 of the License, or (at your option) any later version.
+
+   The Astl Library for C is distributed in the hope that it will be
+   useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+   of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+   Library General Public License for more details.
+
+   You should have received a copy of the GNU Library General Public
+   License along with this library; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+*/
+
+/*
+   Generation of syntax trees with integrated mutations such that
+   an individual mutation can be selected through a global variable.
+*/
+
+print rules {
+   ("compound_statement" stmts...) as block where exists block.rulename -> q{
+      /* rule ${block.rulename} applied at ${block.location} */
+      {
+	 $stmts
+	 $...
+      }
+   };
+}
+
+inplace transformation rules insert_mutated_variants {
+   ("compound_statement" *) as block
+      where exists block.transformed && !block.transformed &&
+	    len(block.variants) > 0 -> 
+	 ("compound_statement"
+	    ("switch_or_iteration_statement"
+	       ("switch"
+		  ("expression" ("identifier" { root.varname_variants }))
+		  ("compound_statement"
+		     ("default" block) ("break")
+		     ("insert_variants") as iv
+		  )
+	       )
+	    )
+	 )
+	 { iv.variants = block.variants; block.transformed = true; };
+   ("compound_statement" stmts...  ("insert_variants") as iv)
+	 where len(iv.variants) > 1 ->
+      { iv.block = pop(iv.variants); iv.id = iv.block.id; }
+      ("compound_statement"
+	 stmts...
+	 ("case" ("integer_constant" { iv.id })
+	    ("compound_statement" { iv.block })
+	 )
+	 ("break")
+	 ("insert_variants") as nextiv
+      )
+      { nextiv.variants = iv.variants; };
+   ("compound_statement" stmts...  ("insert_variants") as iv)
+	 where len(iv.variants) == 1 ->
+      { iv.block = pop(iv.variants); assert(iv.block); iv.id = iv.block.id; }
+      ("compound_statement"
+	 stmts...
+	 ("case" ("integer_constant" { iv.id })
+	    ("compound_statement" { iv.block })
+	 )
+	 ("break")
+      );
+}
+
+attribution rules mutate_functions {
+   ("function_definition" declaration ("compound_statement" stmts...) as block)
+	 as fdef -> {
+      fdef.varname_variants = root.varname_variants;
+      block.variants = root.transformation_rules(block);
+      block.fblock = true;
+      block.transformed = false;
+      foreach variant in (block.variants) {
+	 variant.id = ++root.variant_count;
+      }
+      while (insert_mutated_variants(fdef)) {};
+   };
+}
+
+sub gen_mutations {
+   var troot = args[0]; // transformations are performed on this tree
+   var trules = args[1]; // function representing the mutation rules
+   var varname = args[2]; // variable name that decides which variant is taken
+   if (!exists troot.variant_count) {
+      troot.variant_count = 0;
+   }
+   troot.varname_variants = varname;
+   troot.transformation_rules = trules;
+   return mutate_functions(troot);
+}

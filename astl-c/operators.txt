@@ -1,0 +1,111 @@
+#------------------------------------------------------------------------------
+# By default, string representations of operators are derived from
+# the name of the tokens used in the bison parser (see %token definitions);
+# this configuration file allows to override selected string representations
+# for the Astl language.
+#
+# Each configuration line consists of a token name, a colon, and
+# the string representation (any sequence of characters until end
+# of line).
+#
+# This file is processed by the gen_operators.pl script.
+#------------------------------------------------------------------------------
+
+# keywords
+AUTO:auto
+BREAK:break
+CASE:case
+CHAR:char
+CONST:const
+CONTINUE:continue
+DEFAULT:default
+DO:do
+DOUBLE:double
+ELSE:else
+ENUM:enum
+EXTERN:extern
+FLOAT:float
+FOR:for
+GOTO:goto
+IF:if
+INLINE:inline
+INT:int
+LONG:long
+REGISTER:register
+RESTRICT:restrict
+RETURN:return
+SHORT:short
+SIGNED:signed
+SIZEOF:sizeof
+STATIC:static
+STRUCT:struct
+SWITCH:switch
+TYPEDEF:typedef
+UNION:union
+UNSIGNED:unsigned
+VOID:void
+VOLATILE:volatile
+WHILE:while
+_BOOL_T:_Bool
+_COMPLEX_T:_Complex
+_IMAGINARY_T:_Imaginary
+
+# gcc extensions
+TYPEOF:typeof
+
+# operators and delimiters
+LBRACKET:[]
+LPAREN:()
+LBRACE:{}
+DOT:.
+ARROW:->
+postfix_plusplus:postfix++
+postfix_minusminus:postfix--
+prefix_plusplus:prefix++
+prefix_minusminus:prefix--
+unary_plus:unary+
+unary_minus:unary-
+AMPERSAND:&
+STAR:*
+PLUS:+
+MINUS:-
+TILDE:~
+EXCLAMATION:!
+SLASH:/
+PERCENT:%
+LTLT:<<
+GTGT:>>
+LT:<
+GT:>
+LE:<=
+GE:>=
+EQEQ:==
+NE:!=
+CARET:^
+BAR:|
+AND:&&
+OR:||
+QMARK:?
+COLON::
+SEMICOLON:;
+DOTS:...
+EQ:=
+STAR_EQ:*=
+SLASH_EQ:/=
+PERCENT_EQ:%=
+PLUS_EQ:+=
+MINUS_EQ:-=
+LTLT_EQ:<<=
+GTGT_EQ:>>=
+AMPERSAND_EQ:&=
+CARET_EQ:^=
+BAR_EQ:|=
+COMMA:,
+HASH:#
+HASH_HASH:##
+LT_COLON:<:
+COLON_GT::>
+LT_PERCENT:<%
+PERCENT_GT:%>
+PERCENT_COLON:%:
+PERCENT_COLON_PERCENT_COLON:%:%:

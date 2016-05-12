@@ -1,0 +1,871 @@
+/*
+   Copyright (C) 2010, 2011 Andreas Franz Borchert and Yan Wang
+   ----------------------------------------------------------------------------
+   The Astl Library for C is free software; you can redistribute it
+   and/or modify it under the terms of the GNU Library General Public
+   License as published by the Free Software Foundation; either version
+   2 of the License, or (at your option) any later version.
+
+   The Astl Library for C is distributed in the hope that it will be
+   useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+   of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+   Library General Public License for more details.
+
+   You should have received a copy of the GNU Library General Public
+   License along with this library; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+*/
+
+/*
+   Construction of control flow graphs for the C programming language
+*/
+
+import ops;
+
+// emit some debug text for a control flow graph node,
+// this is used by diagnostic messages
+sub debug_node {
+   var node = args[0];
+   var text = "[" & node.id & "]";
+   if (cfg_type(node) != "") {
+      text &= " " & cfg_type(node) & " node:";
+   }
+   if (exists node.astnode) {
+      text &= "       " & operator(node.astnode);
+      if (exists node.astnode.id) {
+	 text &= " (" & node.astnode.id & ")";
+      }
+      var ntext = gentext(node.astnode);
+      var res = ntext =~ m{([^\n]*)\n.*\n(.*)};
+      if (res) {
+	 ntext = res[0] & " ... " & res[1];
+      }
+      text &= ": " & ntext;
+   }
+   text &= " (";
+   var first = true;
+   foreach label in (node.branch) {
+      if (first) {
+	 first = false;
+      } else {
+	 text &= ", ";
+      }
+      text &= label & ": " & node.branch{label}.id;
+   }
+   if (first) {
+      foreach successor in (node) {
+	 if (first) {
+	    first = false;
+	 } else {
+	    text &= ", ";
+	 }
+	 text &= successor.id;
+    }
+   }
+   text &= ")";
+   return text;
+}
+
+sub init_node {
+   var node = args[0];
+   node.id = graph.counter++;
+   node.successors = {};
+   push(graph.nodes, node);
+}
+
+sub create_node {
+   var node = cfg_node(args[0]); init_node(node);
+   return node;
+}
+
+sub create_fork {
+   var astnode = args[0];
+   if (operator(astnode) == "condition") {
+      astnode = astnode[0];
+   }
+   if (operator(astnode) == "expression") {
+      astnode = astnode[0];
+   }
+   var node = cfg_node("conditional_fork", astnode);
+   init_node(node);
+   return node;
+}
+
+// simple connect function that expects control flow graph nodes,
+// in case of condition nodes, the open end is connected
+sub connect_nodes {
+   var node1 = args[0];
+   var node2 = args[1];
+   if (exists node1.successors{node2.id}) {
+      // already connected
+      println("Warning: ", debug_node(node1),
+	 " is already connected to ", debug_node(node2));
+      return;
+   }
+   if (cfg_type(node1) == "conditional_fork") {
+      // connect the remaining open end
+      if (exists node1.branch.t) {
+	 if (exists node1.branch.f) {
+	    println("Warning: no remaining branch found for ",
+	       debug_node(node1), " to connect it to ", node2.id);
+	 } else {
+	    cfg_connect(node1, node2, "f");
+	 }
+      } else {
+	 cfg_connect(node1, node2, "t");
+      }
+   } else {
+      cfg_connect(node1, node2);
+   }
+   node1.successors{node2.id} = true;
+}
+
+// for break and continue statements
+sub connect_jumps {
+   var nodes = args[0];
+   var target = args[1];
+   if (type(target) == "tree") {
+      target = target.entry;
+   }
+   foreach node in (nodes) {
+      connect_nodes(node, target);
+   }
+}
+
+// common part of connect_true and connect_false
+sub connect_branch {
+   var ast = args[0];
+   var tree1 = args[1];
+   var tree2 = args[2];
+   var connect = args[3];
+
+   var node2 = tree2.entry;
+   check_astnode(tree2);
+   assert(node2);
+   assert(type(node2) == "flow_graph_node");
+   var exits = []; // compute set of remaining open ends
+   if (exists ast.otherexits) {
+      exits = ast.otherexits;
+   } else {
+      ast.otherexits = [];
+   }
+   foreach node1 in (tree1.exits) {
+      if (cfg_type(node1) == "conditional_fork") {
+	 connect(node1, node2);
+	 if (!exists node1.branch.t || !exists node1.branch.f) {
+	    // one open end is left
+	    push(exits, node1);
+	 }
+      } else {
+	 var fork;
+	 if (exists ast.fork) {
+	    fork = ast.fork;
+	 } else {
+	    if (exists tree1.condition) {
+	       fork = create_fork(tree1.condition);
+	    } else {
+	       fork = create_fork(tree1);
+	    }
+	    ast.fork = fork;
+	    connect_nodes(node1, fork);
+	    push(exits, fork);
+	 }
+	 connect(fork, node2);
+      }
+   }
+   ast.entry = tree1.entry;
+   ast.condition = tree2;
+   ast.condexits = exits; // needed for while statement
+   ast.exits = exits & tree2.exits;
+   ast.otherexits &= tree2.exits;
+}
+
+sub connect_true {
+   connect_branch(args[0], args[1], args[2], sub {
+      var node1 = args[0];
+      var node2 = args[1];
+      if (!exists node1.branch.t) {
+	 cfg_connect(node1, node2, "t");
+      }
+   });
+}
+
+sub connect_false {
+   connect_branch(args[0], args[1], args[2], sub {
+      var node1 = args[0];
+      var node2 = args[1];
+      if (!exists node1.branch.f) {
+	 cfg_connect(node1, node2, "f");
+      }
+   });
+}
+
+sub check_astnode {
+   var tree = args[0];
+   if (!exists tree.entry || !tree.entry) {
+      println("Error: no entry defined for operator ", operator(tree),
+	 " with ", len(tree), " operands in ", location(tree), ":");
+      println(gentext(tree));
+   }
+   /*
+   if (type(tree.entry) != "flow_graph_node") {
+      println("Error: invalid entry defined for operator ", operator(tree),
+	 " with ", len(tree), " operands in ", location(tree), ":");
+      println(gentext(tree));
+   }
+   */
+}
+
+// connect function that accepts ast nodes as arguments
+sub connect {
+   var node1 = args[0];
+   var node2 = args[1];
+   var entry;
+   if (type(node2) == "tree") {
+      check_astnode(node2);
+      entry = node2.entry;
+   } else {
+      entry = node2;
+   }
+   if (type(node1) == "tree") {
+      foreach exit in (node1.exits) {
+	 connect_nodes(exit, entry);
+      }
+   } else {
+      connect_nodes(node1, entry);
+   }
+}
+
+// process operators that evaluate both operands
+sub binary_operator {
+   var ast = args[0];
+   var tree1 = args[1]; check_astnode(tree1);
+   var tree2 = args[2]; check_astnode(tree2);
+   var node = create_node(ast);
+   connect(tree1, tree2);
+   connect(tree2, node);
+   ast.entry = tree1.entry;
+   ast.exits = [node];
+}
+
+sub wrap_node {
+   var ast = args[0];
+   var inner = args[1];
+   check_astnode(inner);
+   ast.entry = inner.entry;
+   ast.exits = inner.exits;
+}
+
+sub unary_operator {
+   var ast = args[0];
+   var operand = args[1];
+   var node = create_node(ast);
+   connect(operand, node);
+   ast.entry = operand.entry;
+   ast.exits = [node];
+}
+
+sub terminal {
+   var ast = args[0];
+   var node = create_node(ast);
+   ast.entry = node;
+   ast.exits = [node];
+}
+
+sub function_call {
+   var stmt = args[0];
+   var id = args[1];
+   var arguments;
+   if (len(args) > 2) {
+      arguments = args[2];
+   }
+   var before_call = cfg_node("call", stmt); init_node(before_call);
+   var call = cfg_node("actual_call", stmt); init_node(call);
+   var rtn = cfg_node("rtn", stmt); init_node(rtn);
+   call.hidden = true; rtn.hidden = true;
+   var callid = graph.callid++; call.callid = callid; rtn.callid = callid;
+   if (defined(arguments)) {
+      connect(arguments, before_call);
+   }
+   cfg_connect(before_call, call);
+   cfg_connect(call, rtn, "local");
+   if (exists graph.entries{id}) {
+      cfg_connect(call, graph.entries{id}, "extern");
+      cfg_connect(graph.exits{id}, rtn);
+   } else {
+      if (!exists graph.unresolved{id}) {
+	 graph.unresolved{id} = [];
+      }
+      push(graph.unresolved{id}, {call -> call, rtn -> rtn});
+   }
+   if (defined(arguments)) {
+      stmt.entry = arguments.entry;
+   } else {
+      stmt.entry = before_call;
+   }
+   stmt.exits = [rtn];
+   stmt.function_name = id;
+}
+
+attribution rules {
+   ("translation_unit" *) -> pre {
+      graph.entries = {};
+      graph.exits = {};
+      graph.nodes = [];
+      graph.unresolved = {};
+      graph.counter = 0;
+      graph.callid = 0;
+   };
+   ("translation_unit" *) -> post {
+      if (exists graph.entries.main) {
+	 graph.root = graph.entries.main;
+      }
+   };
+   ("direct_declarator" ("identifier" id)) in ("declarator" *) as decl -> {
+      decl.id = id;
+   };
+   ("compound_statement" stmt...) as block -> post {
+      if (stmt) {
+	 var open = cfg_node("open_block", block); init_node(open);
+	 var cls = cfg_node("close_block", block); init_node(cls);
+	 open.hidden = true; cls.hidden = true;
+	 var first = stmt[0]; var last;
+	 foreach s in (stmt) {
+	    check_astnode(s);
+	    if (last) {
+	       connect(last, s);
+	    }
+	    last = s;
+	 }
+	 connect(open, first); connect(last, cls);
+	 block.entry = open; block.exits = [cls];
+      } else {
+	 var node = create_node(block);
+	 block.entry = node;
+	 block.exits = [node];
+      }
+   };
+   // other statements
+   ("switch_statement" inner_stmt) as stmt -> post {
+      stmt.entry = inner_stmt.entry;
+      stmt.exits = inner_stmt.exits;
+   };
+   // expression statements
+   ("expression_statement") as stmt -> {
+      var node = create_node(stmt);
+      stmt.entry = node;
+      stmt.exits = [node];
+   };
+   ("expression_statement" expr) as stmt -> post {
+      check_astnode(expr);
+      var node = cfg_node("statement", stmt); init_node(node);
+      connect(expr, node);
+      stmt.entry = expr.entry;
+      stmt.exits = [node];
+   };
+   // expressions
+   ("expression") as stmt -> post {
+      // empty expression (can be used within for-statements)
+      var node = create_node(stmt);
+      stmt.entry = node;
+      stmt.exits = [node];
+   };
+   ("expression" expr) as stmt -> post {
+      check_astnode(expr);
+      // preliminary as we have to convert expressions
+      // into individual cfg nodes as well
+      if (exists expr.entry) {
+	 stmt.entry = expr.entry;
+	 stmt.exits = expr.exits;
+	 if (exists expr.condition) {
+	    stmt.condition = expr.condition;
+	 } else {
+	    stmt.condition = expr;
+	 }
+      } else {
+	 var node = create_node(stmt);
+	 stmt.entry = node;
+	 stmt.exits = [node];
+      }
+   };
+   ("statement_expression" stmt) as expr -> post {
+      expr.entry = stmt.entry;
+      expr.exits = stmt.exits;
+   };
+   ("condition" expr) as stmt -> post {
+      stmt.entry = expr.entry;
+      stmt.exits = expr.exits;
+   };
+   ("condition" ("expression" ("integer_constant" "1"))) as stmt -> post {
+      stmt.constant_condition = true;
+   };
+   // terminals
+   ("integer_constant" val) as stmt -> post {
+      terminal(stmt);
+   };
+   ("floating_constant" val) as stmt -> post {
+      terminal(stmt);
+   };
+   ("character_constant" val) as stmt -> post {
+      terminal(stmt);
+   };
+   ("string_literal" val) as stmt -> post {
+      terminal(stmt);
+   };
+   ("string_literal" s1 s2) as stmt -> post {
+      terminal(stmt);
+   };
+   ("identifier" id) as stmt -> post {
+      terminal(stmt);
+   };
+   // unary operators
+   ("prefix--" a) as stmt -> post {
+      unary_operator(stmt, a);
+   };
+   ("prefix++" a) as stmt -> post {
+      unary_operator(stmt, a);
+   };
+   ("postfix--" a) as stmt -> post {
+      unary_operator(stmt, a);
+   };
+   ("postfix++" a) as stmt -> post {
+      unary_operator(stmt, a);
+   };
+   ("&" a) as stmt -> post {
+      unary_operator(stmt, a);
+   };
+   ("pointer_dereference" a) as stmt -> post {
+      unary_operator(stmt, a);
+   };
+   ("unary+" a) as stmt -> post {
+      unary_operator(stmt, a);
+   };
+   ("unary-" a) as stmt -> post {
+      unary_operator(stmt, a);
+   };
+   ("~" a) as stmt -> post {
+      unary_operator(stmt, a);
+   };
+   ("!" a) as stmt -> post {
+      unary_operator(stmt, a);
+   };
+   ("sizeof" ("type_name" *)) as stmt -> post {
+      terminal(stmt);
+   };
+   ("sizeof" a) as stmt where operator(a) != "type_name" -> post {
+      unary_operator(stmt, a);
+   };
+   ("cast_expression" t e) as stmt -> post {
+      unary_operator(stmt, e);
+   };
+   // gcc extensions
+   ("label_as_value" label) as stmt -> post {
+      terminal(stmt);
+   };
+   ("assembler_instructions" *) as stmt -> post {
+      /* currently ignoring the "asm goto" variant which could
+	 possibly jump to some label */
+      terminal(stmt);
+   };
+   // binary operators
+   (["->" "."] a b) as stmt -> post {
+      unary_operator(stmt, a); // the field name b is ignored here
+   };
+   ("[]" a b) as stmt -> post {
+      binary_operator(stmt, b, a);
+   };
+   ("{}" typename initializer) as stmt -> post {
+      // unary_operator(stmt, initializer); FIXME
+      terminal(stmt);
+   };
+   ("+" a b) as stmt -> post {
+      binary_operator(stmt, a, b);
+   };
+   ("-" a b) as stmt -> post {
+      binary_operator(stmt, a, b);
+   };
+   ("%" a b) as stmt -> post {
+      binary_operator(stmt, a, b);
+   };
+   ("*" a b) as stmt -> post {
+      binary_operator(stmt, a, b);
+   };
+   ("/" a b) as stmt -> post {
+      binary_operator(stmt, a, b);
+   };
+   ("|" a b) as stmt -> post {
+      binary_operator(stmt, a, b);
+   };
+   ("^" a b) as stmt -> post {
+      binary_operator(stmt, a, b);
+   };
+   ("&" a b) as stmt -> post {
+      binary_operator(stmt, a, b);
+   };
+   ("==" a b) as stmt -> post {
+      binary_operator(stmt, a, b);
+   };
+   ("!=" a b) as stmt -> post {
+      binary_operator(stmt, a, b);
+   };
+   ("<" a b) as stmt -> post {
+      binary_operator(stmt, a, b);
+   };
+   (">" a b) as stmt -> post {
+      binary_operator(stmt, a, b);
+   };
+   ("<=" a b) as stmt -> post {
+      binary_operator(stmt, a, b);
+   };
+   (">=" a b) as stmt -> post {
+      binary_operator(stmt, a, b);
+   };
+   ("<<" a b) as stmt -> post {
+      binary_operator(stmt, a, b);
+   };
+   (">>" a b) as stmt -> post {
+      binary_operator(stmt, a, b);
+   };
+   // short circuit operators
+   ("&&" a b) as stmt -> post {
+      connect_true(stmt, a, b);
+   };
+   ("||" a b) as stmt -> post {
+      connect_false(stmt, a, b);
+   };
+   // assignment operators
+   ([assignment_operators] lvalue rvalue) as stmt -> post {
+      var node = create_node(stmt);
+      connect(rvalue, lvalue); connect(lvalue, node);
+      // now wrap it into assignment_begin .. assignment_end
+      var begin = cfg_node("assignment_begin", stmt); init_node(begin);
+      var end = cfg_node("assignment_end", stmt); init_node(end);
+      if (exists lvalue.object) {
+	 begin.object = end.object = lvalue.object;
+      }
+      begin.hidden = true; end.hidden = true;
+      connect(begin, rvalue); connect(node, end);
+      stmt.entry = begin;
+      stmt.exits = [end];
+   };
+   // comma operator
+   ("," a b) as stmt -> post {
+      binary_operator(stmt, a, b);
+   };
+
+   // function calls
+   ("argument_expression_list" arg) as stmt -> post {
+      var node = cfg_node("param", arg); init_node(node);
+      connect(arg, node);
+      check_astnode(arg);
+      stmt.entry = arg.entry;
+      stmt.exits = [node];
+   };
+   ("argument_expression_list" args1 args2) as stmt -> post {
+      connect(args1, args2);
+      var node = cfg_node("param", args2); init_node(node);
+      connect(args2, node);
+      stmt.entry = args1.entry;
+      stmt.exits = [node];
+   };
+   ("function_call" ("identifier" id) args) as stmt -> post {
+      function_call(stmt, id, args);
+   };
+   ("function_call" ("identifier" id)) as stmt -> post {
+      function_call(stmt, id);
+   };
+   ("function_call" expr) as stmt where operator(expr) != "identifier" -> post {
+      unary_operator(stmt, expr);
+   };
+   ("function_call" expr args) as stmt
+	 where operator(expr) != "identifier" -> post {
+      binary_operator(stmt, expr, args);
+   };
+   ("initializer") as stmt -> post {
+      var node = create_node(stmt);
+      stmt.entry = node;
+      stmt.exits = [node];
+      node.hidden = true;
+   };
+   ("initializer" ("expression" *) as expr) as stmt -> post {
+      wrap_node(stmt, expr);
+   };
+   ("initializer_list" initializer) as stmt -> post {
+      wrap_node(stmt, initializer);
+   };
+   ("initializer_list" initializer_list initializer) as stmt -> post {
+      check_astnode(initializer_list);
+      check_astnode(initializer);
+      connect(initializer_list, initializer);
+      stmt.entry = initializer_list.entry;
+      stmt.exits = initializer.exits;
+   };
+   ("declaration" *) as stmt -> post {
+      var prevnode;
+      var firstnode;
+      foreach object in (stmt.objects) {
+	 var node = cfg_node("vardecl", object.astnode); init_node(node);
+	 node.varname = object.name;
+	 node.vartype = object.t;
+	 node.object = object;
+	 if (exists stmt.block) {
+	    node.block = stmt.block;
+	 }
+	 if (prevnode) {
+	    connect(prevnode, node);
+	 } else {
+	    firstnode = node;
+	 }
+	 prevnode = node;
+	 if (exists object.initializer) {
+	    check_astnode(object.initializer);
+	    var initnode_begin = cfg_node("varinit_begin", object.initializer);
+	    init_node(initnode_begin);
+	    var initnode_end = cfg_node("varinit_end", object.initializer);
+	    init_node(initnode_end);
+	    initnode_end.varname = initnode_begin.varname = object.name;
+	    initnode_end.object = initnode_begin.object = object;
+	    initnode_end.vartype = initnode_begin.vartype = object.t;
+	    connect(prevnode, initnode_begin);
+	    connect(initnode_begin, object.initializer);
+	    connect(object.initializer, initnode_end);
+	    prevnode = initnode_end;
+	 }
+      }
+      if (firstnode) {
+	 stmt.entry = firstnode;
+	 stmt.exits = [prevnode];
+      } else {
+	 // empty declaration, possibly a typedef (FIXME)
+	 var node = cfg_node(stmt); init_node(node);
+	 stmt.entry = node;
+	 stmt.exits = [node];
+	 node.hidden = true;
+      }
+   };
+   // targets or sources of various jump statements
+   ("switch_or_iteration_statement" *) as stmt -> pre {
+      stmt.breaks = [];
+   };
+   ("iteration_statement" *) as stmt -> pre {
+      stmt.continues = [];
+   };
+   ("switch_statement" *) as stmt -> pre {
+      stmt.labels = [];
+   };
+   ("break") as stmt in ("switch_or_iteration_statement" *) as outer_stmt -> {
+      var node = create_node(stmt);
+      stmt.entry = node;
+      stmt.exits = [];
+      push(outer_stmt.breaks, node);
+   };
+   ("continue") as stmt in ("iteration_statement" *) as outer_stmt -> {
+      var node = create_node(stmt);
+      stmt.entry = node;
+      stmt.exits = [];
+      push(outer_stmt.continues, node);
+   };
+   
+
+   ("switch_or_iteration_statement" inner_stmt) as stmt -> post {
+      stmt.entry = inner_stmt.entry;
+      stmt.exits = inner_stmt.exits & stmt.breaks;
+   };
+   ("iteration_statement" inner_stmt) as stmt -> post {
+      stmt.entry = inner_stmt.entry;
+      stmt.exits = inner_stmt.exits;
+   };
+   ("switch_statement" inner_stmt) as stmt -> post {
+      stmt.entry = inner_stmt.entry;
+      stmt.exits = inner_stmt.exits;
+   };
+   ("while" cond block) as stmt
+	 in ("iteration_statement" *) as outer_stmt -> post {
+      if (exists cond.constant_condition && cond.constant_condition) {
+	 stmt.entry = block.entry;
+	 connect(block, block); // endless loop
+	 connect_jumps(outer_stmt.continues, block);
+	 stmt.exits = [];
+      } else {
+	 connect_true(stmt, cond, block);
+	 connect(block, cond); // loop
+	 connect_jumps(outer_stmt.continues, cond);
+	 stmt.exits = stmt.condexits; // remove exits of block
+      }
+   };
+   ("do" block cond) as stmt
+	 in ("iteration_statement" *) as outer_stmt -> post {
+      connect(block, cond);
+      connect_true(stmt, cond, block);
+      connect_jumps(outer_stmt.continues, cond);
+      stmt.entry = block.entry;
+      stmt.exits = stmt.condexits; // remove exits of block
+   };
+   ("for" block) as stmt
+	 in ("iteration_statement" *) as outer_stmt -> post {
+      stmt.entry = block.entry;
+      stmt.exits = [];
+      connect(block, block);
+      connect_jumps(outer_stmt.continues, block);
+   };
+// cases with 3 expressions   
+   ("for" init cond incr block) as stmt
+	 in ("iteration_statement" *) as outer_stmt -> post {
+      connect_true(stmt, cond, block);
+      stmt.entry = init.entry; connect(init, cond);
+      connect(block, incr);
+      connect_jumps(outer_stmt.continues, incr);
+      connect(incr, cond);
+      stmt.exits = stmt.condexits;
+   };
+   // if statements
+   ("if" cond then) as stmt -> post {
+      connect_true(stmt, cond, then);
+   };
+   ("if" cond then_stmt else_stmt) as stmt -> post {
+      connect_true(stmt, cond, then_stmt);
+      connect_false(stmt, cond, else_stmt);
+   };
+   // tertiary ?: operator
+   ("conditional_expression" expr1 expr2 expr3) as stmt -> post {
+      connect_true(stmt, expr1, expr2);
+      connect_false(stmt, expr1, expr3);
+   };
+   ("conditional_expression" expr1 expr2) as stmt -> post {
+      // gcc extension: http://gcc.gnu.org/onlinedocs/gcc/Conditionals.html
+      connect_false(stmt, expr1, expr2);
+   };
+   // like ?: but evaluated at compilation time (gcc extension)
+   ("choose_expr" expr1 expr2 expr3) as stmt -> post {
+      connect_true(stmt, expr1, expr2);
+      connect_false(stmt, expr1, expr3);
+   };
+   // switch statement
+   ("switch" expr block) as stmt -> pre {
+      stmt.cases = [];
+   };
+   ("switch" expr block) as stmt
+	 in ("switch_or_iteration_statement" *) as outer_stmt -> post {
+      stmt.entry = expr.entry;
+      var node = create_node(stmt);
+      connect(expr, node);
+      // breaks are handled by switch_or_iteration_statement
+      stmt.exits = block.exits;
+      foreach case in (stmt.cases) {
+	 connect(node, case);
+      }
+      if (!exists stmt.default) {
+	 push(stmt.exits, node);
+      }
+   };
+   ("case" expr case_stmt) as stmt in ("switch" *) as switch -> post {
+      var node = create_node(stmt);
+      stmt.entry = node;
+      stmt.exits = case_stmt.exits;
+      connect(node, case_stmt);
+      push(switch.cases, node);
+   };
+   ("default" case_stmt) as stmt in ("switch" *) as switch -> post {
+      var node = create_node(stmt);
+      stmt.entry = node;
+      stmt.exits = case_stmt.exits;
+      connect(node, case_stmt);
+      push(switch.cases, node);
+      switch.default = stmt;
+   };
+
+
+   // return statements
+   ("return") as stmt in ("function_definition" *) as fdef -> {
+      var node = create_node(stmt);
+      stmt.entry = node;
+      stmt.exits = [];
+      cfg_connect(node, fdef.exit);
+   };
+   ("return" expr) as stmt in ("function_definition" *) as fdef -> post {
+      stmt.entry = expr.entry;
+      stmt.exits = [];
+      var node = create_node(stmt);
+      connect(expr, node);
+      cfg_connect(node, fdef.exit);
+   };
+   ("labeled_statement" ("identifier" ident) labeled_stmt) as stmt 
+          in ("function_definition" *) as fdef -> post {
+      fdef.goto{ident} = labeled_stmt.entry;
+      if (exists fdef.unresolved_gotos{ident}) {
+         foreach goto in (fdef.unresolved_gotos{ident}) {
+	    cfg_connect(goto, labeled_stmt.entry); 
+         }
+      }
+      stmt.entry = labeled_stmt.entry;
+      stmt.exits = labeled_stmt.exits;
+    };
+    ("goto" ("identifier" ident)) as stmt in ("function_definition" *)
+           as fdef -> pre {
+         var goto = cfg_node(stmt); init_node(goto);
+	 if (exists fdef.goto{ident}) {
+	    cfg_connect(goto, fdef.goto{ident});
+	 } else {
+	    if (!exists fdef.unresolved_gotos{ident}) {
+	       fdef.unresolved_gotos{ident} = [];
+	    }
+	    push(fdef.unresolved_gotos{ident}, goto);
+	 }
+	 stmt.entry = goto;
+	 stmt.exits = [];
+   };
+   // gcc extension: computed goto
+   ("computed_goto" target) as stmt -> post {
+      var goto = cfg_node(stmt); init_node(goto);
+      stmt.entry = goto;
+      // we need to compute a list of possible targets,
+      // not done yet
+      stmt.exits = [];
+   };
+   // gcc extension
+   ("unreachable") as stmt -> post {
+      var unreachable = cfg_node(stmt); init_node(stmt);
+      stmt.entry = unreachable;
+      stmt.exits = [];
+   };
+   // function declarations
+   ("function_definition" declaration block) as fdef -> pre {
+      fdef.exit = cfg_node("exit"); init_node(fdef.exit);
+      fdef.goto = {};
+      fdef.unresolved_gotos = {};
+      fdef.vars = {};
+      var labeled;
+      var search;
+   };
+   ("function_definition" declaration block) as fdef -> post {
+      var id;
+      foreach object in (declaration.objects) {
+	 id = object.name;
+      }
+      assert(id);
+      var entry = cfg_node("entry", fdef); init_node(entry);
+      entry.name = id;
+      var exit = fdef.exit;
+      cfg_connect(entry, block.entry);
+      connect(block, exit);
+      if (defined(id)) {
+	 graph.entries{id} = entry;
+	 graph.exits{id} = exit;
+	 if (exists graph.unresolved{id}) {
+	    foreach caller in (graph.unresolved{id}) {
+	       cfg_connect(caller.call, entry, "extern");
+	       cfg_connect(exit, caller.rtn);
+	    }
+	    delete graph.unresolved{id};
+	 }
+      }
+   };
+   ("translation_unit" *) -> post {
+      foreach id in (graph.unresolved) {
+	 foreach caller in (graph.unresolved{id}) {
+	    // shortcut unresolved references to extern functions
+	    cfg_connect(caller.call, caller.rtn, "extern");
+	 }
+      }
+   };
+}

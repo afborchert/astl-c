@@ -1,0 +1,667 @@
+/*
+   Copyright (C) 2009-2011 Yan Wang and Andreas Franz Borchert
+   ----------------------------------------------------------------------------
+   The Astl Library for C is free software; you can redistribute it
+   and/or modify it under the terms of the GNU Library General Public
+   License as published by the Free Software Foundation; either version
+   2 of the License, or (at your option) any later version.
+
+   The Astl Library for C is distributed in the hope that it will be
+   useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+   of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+   Library General Public License for more details.
+
+   You should have received a copy of the GNU Library General Public
+   License along with this library; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+*/
+
+sub get_file_name {
+   var node = args[0];
+   var loc = location(node);
+   var matched = loc =~ m{^(\S+):};
+   if (matched) {
+      return matched[0];
+   } else {
+      return "*UNKNOWN*";
+   }
+}
+
+print rules {
+   ("translation_units" unit...) -> q{
+      $unit
+      $...
+   };
+   ("translation_unit" external_declaration...) -> q{
+      $external_declaration
+      $...
+   };
+   ("translation_unit" external_declaration...) as unit
+	 in ("translation_units" *) -> q{
+      /* ${get_file_name(unit)} */
+      $external_declaration
+      $...
+   };
+
+   ("external_declaration" decl) -> q{$decl};
+   ("function_definition"
+	 ("declaration" specifiers ("init_declarator_list" declarator))
+	 compound_statement) -> q{
+      $specifiers $declarator $compound_statement
+   };
+   ("function_definition"
+	 ("declaration" specifiers ("init_declarator_list" declarator))
+	 declaration_list compound_statement) -> q{
+      $specifiers $declarator
+	 $declaration_list
+      $compound_statement
+   };
+
+   ("()" expr) -> q{($expr)};
+   ("()") -> q{()};
+
+   ("statement_expression" stmt) -> q{($stmt)};
+   ("expression" expr) -> q{$expr};
+   ("condition" expr) -> q{$expr};
+
+   ("[]" expr) -> q{[$expr]};
+   ("[]" expr1 expr2) -> q{$expr1[$expr2]};
+   ("." ident) -> q{.$ident};
+   ("." expr ident) -> q{$expr.$ident};
+   ("->" expr ident) -> q{$expr->$ident};
+   ("postfix++" expr) -> q{$expr++};
+   ("postfix--" expr) -> q{$expr--};
+
+   ("function_call" f) -> q{$f()};
+   ("function_call" f args) -> q{$f($args)};
+   // in some cases, the parenthesizer puts the args into extra parentheses
+   ("function_call" f ("()" args)) -> q{$f($args)};
+
+   ("{}" itype) -> q{($itype) {}};
+   ("{}" itype initializer_list) -> q{($itype) {$initializer_list}};
+
+   ("prefix++" expr) -> q{++$expr};
+   ("prefix--" expr) -> q{--$expr};
+   ("&" expr) -> q{&$expr};
+   ("pointer_dereference" expr) -> q{*$expr};
+   ("unary+" expr) -> q{+$expr};
+   ("unary-" expr) -> q{-$expr};
+   ("~" expr) -> q{~$expr};
+   ("!" expr) -> q{!$expr};
+   ("sizeof" expr) -> q{sizeof $expr};
+   ("sizeof" ("type_name" *) as type) -> q{sizeof($type)};
+
+
+   ("*" expr1 expr2) -> q{$expr1 * $expr2};
+   ("/" expr1 expr2) -> q{$expr1 / $expr2};
+   ("%" expr1 expr2) -> q{$expr1 % $expr2};
+   ("argument_expression_list" expr) -> q{$expr};
+   ("argument_expression_list" expr1 expr2) -> q{$expr1, $expr2};
+
+   ("+" expr1 expr2) -> q{$expr1 + $expr2};
+   ("-" expr1 expr2) -> q{$expr1 - $expr2};
+
+   ("||" expr1 expr2) -> q{$expr1 || $expr2};
+   ("&&" expr1 expr2) -> q{$expr1 && $expr2};
+   ("|" expr1 expr2) -> q{$expr1 | $expr2};
+   ("^" expr1 expr2) -> q{$expr1 ^ $expr2};
+   ("&" expr1 expr2) -> q{$expr1 & $expr2};
+   ("==" expr1 expr2) -> q{$expr1 == $expr2};
+   ("!=" expr1 expr2) -> q{$expr1 != $expr2};
+   ("<" expr1 expr2) -> q{$expr1 < $expr2};
+   (">" expr1 expr2) -> q{$expr1 > $expr2};
+   ("<=" expr1 expr2) -> q{$expr1 <= $expr2};
+   (">=" expr1 expr2) -> q{$expr1 >= $expr2};
+   ("<<" expr1 expr2) -> q{$expr1 << $expr2};
+   (">>" expr1 expr2) -> q{$expr1 >> $expr2};
+
+   ("=" expr1 expr2) -> q{$expr1 = $expr2};
+   ("*=" expr1 expr2) -> q{$expr1 *= $expr2};
+   ("/=" expr1 expr2) -> q{$expr1 /= $expr2};
+   ("%=" expr1 expr2) -> q{$expr1 %= $expr2};
+   ("+=" expr1 expr2) -> q{$expr1 += $expr2};
+   ("-=" expr1 expr2) -> q{$expr1 -= $expr2};
+   ("<<=" expr1 expr2) -> q{$expr1 <<= $expr2};
+   (">>=" expr1 expr2) -> q{$expr1 >>= $expr2};
+   ("&=" expr1 expr2) -> q{$expr1 &= $expr2};
+   ("^=" expr1 expr2) -> q{$expr1 ^= $expr2};
+   ("|=" expr1 expr2) -> q{$expr1 |= $expr2};
+
+   ("," expr1 expr2) -> q{$expr1, $expr2};
+
+   ("conditional_expression" expr1 expr2 expr3) -> q{$expr1? $expr2: $expr3};
+   // gcc extensions
+   ("conditional_expression" expr1 expr2) -> q{$expr1? : $expr2};
+   ("choose_expr" expr1 expr2 expr3) ->
+      q{__builtin_choose_expr($expr1, $expr2, $expr3)};
+
+   // gcc extensions for assembler instructions
+   ("assembler_instructions" asm_spec) -> q{asm($asm_spec)};
+   ("assembler_instructions" ("volatile") asm_spec) ->
+      q{asm volatile ($asm_spec)};
+   ("assembler_instructions" ("goto") asm_spec) ->
+      q{asm goto ($asm_spec)};
+   ("assembler_spec" s) -> q{$s};
+   ("assembler_spec" s output) -> q{$s : $output};
+   ("assembler_spec" s output input) -> q{$s : $output : $input};
+   ("assembler_spec" s output input clobbered) ->
+      q{$s : $output : $input : $clobbered};
+   ("asm_goto_spec" s output input clobbered labels) ->
+      q{$s : $output : $input : $clobbered : $labels};
+   ("asm_operands") -> q{};
+   ("asm_operands" op) -> q{$op};
+   ("asm_operands" ops op) -> q{$ops, $op};
+   ("asm_operand" s) -> q{$s};
+   ("asm_operand" s expr) -> q{$s ($expr)};
+   ("asm_operand" name s expr) -> q{[$name] $s ($expr)};
+   ("asm_clobbered_objects") -> q{};
+   ("asm_clobbered_objects" obj) -> q{$obj};
+   ("asm_clobbered_objects" objs obj) -> q{$objs, $obj};
+
+   ("unreachable") -> q{__builtin_unreachable()};
+
+   // gcc extension for taking the value of a label
+   ("label_as_value" label) -> q{&&$label};
+   ("computed_goto" expr) -> q{goto $expr;};
+
+   // gcc extension for comparing two types
+   ("types_compatible_p" type1 type2) ->
+      q{__builtin_types_compatible_p($type1, $type2)};
+
+   // common extension for <stdargs.h>
+   ("va_arg" ap typename) -> q{va_arg($ap, $typename)};
+
+   // gcc extension for the implementation of the offsetof macro
+   ("builtin_offsetof" type_name designator) -> q{
+      __builtin_offsetof($type_name, $designator)
+   };
+
+   // gcc extension for the __alignof__ inquiry
+   ("alignof" type_or_lvalue) -> q{__alignof__($type_or_lvalue)};
+
+   ("initializer" ("expression" expr)) -> q{$expr};
+   ("initializer") -> q{{}};
+   ("initializer" ("initializer_list" *) as ilist) -> q{{$ilist}};
+
+   ("initializer_list" initializer) -> q{$initializer};
+   ("initializer_list" ("designation" *) as designation initializer) ->
+      q{$designation $initializer};
+   ("initializer_list"
+      ("initializer_list" *) as initializer_list initializer) ->
+	 q{$initializer_list, $initializer};
+   ("initializer_list" initializer_list designation initializer) ->
+      q{$initializer_list, $designation $initializer};
+
+   ("designation" designator_list) -> q{$designator_list =};
+
+   // gcc extension
+   ("designated_range" a b) -> q{[$a ... $b]};
+
+   ("cast_expression" t expr) -> q{($t) $expr};
+
+   ("declaration_list" decl1 decl2) -> q{
+      $decl1
+      $decl2
+   };
+   ("declaration" declaration_specifiers) -> q{$declaration_specifiers;};
+   ("declaration" declaration_specifiers init_declarator_list) ->
+      q{$declaration_specifiers $init_declarator_list;};
+
+   ("declaration_specifiers" specifier) ->
+      q{$specifier};
+   ("declaration_specifiers" specifier specifiers) ->
+      q{$specifier $specifiers};
+
+   ("storage_class_specifier" ("typedef")) -> q{typedef};
+   ("storage_class_specifier" ("extern")) -> q{extern};
+   ("storage_class_specifier" ("static")) -> q{static};
+   ("storage_class_specifier" ("auto")) -> q{auto};
+   ("storage_class_specifier" ("register")) -> q{register};
+
+   ("type_specifier" ("void")) -> q{void};
+   ("type_specifier" ("char")) -> q{char};
+   ("type_specifier" ("short")) -> q{short};
+   ("type_specifier" ("int")) -> q{int};
+   ("type_specifier" ("long")) -> q{long};
+   ("type_specifier" ("float")) -> q{float};
+   ("type_specifier" ("double")) -> q{double};
+   ("type_specifier" ("signed")) -> q{signed};
+   ("type_specifier" ("unsigned")) -> q{unsigned};
+   ("type_specifier" ("_Bool")) -> q{_Bool};
+   ("type_specifier" ("_Complex")) -> q{_Complex};
+   ("type_specifier" ("_Imaginary")) -> q{_Imaginary};
+   ("type_specifier" ("struct" *) as su_specifier ) -> q{$su_specifier};
+   ("type_specifier" ("union" *) as su_specifier ) -> q{$su_specifier};
+   ("type_specifier" ("enum" *) as enum_specifier) -> q{$enum_specifier};
+   ("type_specifier" ("typedef_name" *) as typedef_name) -> q{$typedef_name};
+
+   // gcc extension: attributes for structs, unions, and enums
+   ("type_specifier"
+	 ("struct_or_union_specifier_with_attributes"
+	    ("struct" decls) attr)) -> q{
+      struct $attr {
+	 $decls
+      }
+   };
+   ("type_specifier"
+	 ("struct_or_union_specifier_with_attributes"
+	    ("struct" name decls) attr)) -> q{
+      struct $attr $name {
+	 $decls
+      }
+   };
+   ("type_specifier"
+	 ("struct_or_union_specifier_with_attributes"
+	    ("union" decls) attr)) -> q{
+      union $attr {
+	 $decls
+      }
+   };
+   ("type_specifier"
+	 ("struct_or_union_specifier_with_attributes"
+	    ("union" name decls) attr)) -> q{
+      union $attr $name {
+	 $decls
+      }
+   };
+   ("type_specifier"
+	 ("enum_specifier_with_attributes"
+	    ("enum" enumerators) attr)) -> q{enum $attr {$enumerators}};
+   ("type_specifier"
+	 ("enum_specifier_with_attributes"
+	    ("enum" name enumerators) attr)) ->
+	       q{enum $attr $name {$enumerators}};
+
+   // gcc extensions: typeof
+   ("type_specifier" ("typeof" ("expression" *) as expr)) ->
+      q{__typeof__($expr)};
+   ("type_specifier" ("typeof" ("type_name" *) as typename)) ->
+      q{__typeof__($typename)};
+   ("typeof" expr_or_type) -> q{__typeof__($expr_or_type)};
+
+   ("function_specifier" ("inline")) -> q{inline};
+
+   ("type_qualifier" ("const")) -> q{const};
+   ("type_qualifier" ("restrict")) -> q{restrict};
+   ("type_qualifier" ("volatile")) -> q{volatile};
+
+   // ------------------------------------------------------------------------
+   // struct and union declarations
+   // ------------------------------------------------------------------------
+
+   // regular struct and union declarations
+   ("struct" ("struct_declaration_list" *) as sdl) -> q{
+      struct {
+	 $sdl
+      }
+   };
+   ("struct" ("struct_name" id) ("struct_declaration_list" *) as sdl) -> q{
+      struct $id {
+	 $sdl
+      }
+   };
+   ("union" ("struct_declaration_list" *) as sdl) -> q{
+      union {
+	 $sdl
+      }
+   };
+   ("union" ("union_name" id) ("struct_declaration_list" *) as sdl) -> q{
+      union $id {
+	 $sdl
+      }
+   };
+
+   /*
+      struct and unions with empty declaration lists;
+      while they are not permitted by ISO C many C compilers (like gcc)
+      accept them and are due to this not uncommon
+   */
+   ("struct" ("struct_declaration_list")) -> q{struct {}};
+   ("struct" name ("struct_declaration_list")) -> q{struct $name {}};
+   ("union" ("struct_declaration_list")) -> q{union {}};
+   ("union" name ("struct_declaration_list")) -> q{union $name {}};
+
+   // simple references to a named struct or union
+   ("struct" ("struct_name" id)) -> q{struct $id};
+   ("union" ("union_name" id)) -> q{union $id};
+
+   // struct and union names
+   ("struct_name" id) -> q{$id};
+   ("union_name" id) -> q{$id};
+
+   // struct declaration lists (the empty case is already handled above)
+   ("struct_declaration_list" decl) -> q{$decl};
+   ("struct_declaration_list" decl_list decl) -> q{
+      $decl_list
+      $decl
+   };
+
+   ("struct_declarator_list" struct_declarator) -> q{$struct_declarator};
+   ("struct_declarator_list" struct_declarator_list struct_declarator) ->
+      q{$struct_declarator_list, $struct_declarator};
+
+   ("struct_declaration" specifier_qualifier_list struct_declarator_list) ->
+      q{$specifier_qualifier_list $struct_declarator_list;};
+   // gcc extension: http://gcc.gnu.org/onlinedocs/gcc/Unnamed-Fields.html
+   ("struct_declaration" struct_or_union_specifier) ->
+      q{$struct_or_union_specifier;};
+
+   ("struct_declarator" declarator) -> q{$declarator};
+   ("struct_declarator" (":" expr)) -> q{:$expr};
+   ("struct_declarator" declarator (":" expr)) -> q{$declarator:$expr};
+
+   // ------------------------------------------------------------------------
+   // enum declarations
+   // ------------------------------------------------------------------------
+
+   ("enum" ("enumerator_list" *) as enumerator_list) ->
+      q{enum {$enumerator_list}};
+   ("enum" id enumerator_list) -> q{enum $id {$enumerator_list}};
+   ("enum" ("enum_name" id)) -> q{enum $id};
+   ("enum_name" id) -> q{$id};
+
+   ("enumerator_list" enumerator) -> q{$enumerator};
+   ("enumerator_list" list enumerator) -> q{$list, $enumerator};
+   ("enumerator" id) -> q{$id};
+   ("enumerator" id expr) -> q{$id = $expr};
+
+// type_name
+   ("type_name" specifier_qualifier_list) -> q{$specifier_qualifier_list};
+   ("type_name" specifier_qualifier_list abstract_declarator) ->
+      q{$specifier_qualifier_list $abstract_declarator};
+
+// specifier_qualifier_list
+   ("specifier_qualifier_list" specifier_or_qualifier) ->
+      q{$specifier_or_qualifier};
+   ("specifier_qualifier_list" specifier_or_qualifier list) ->
+      q{$specifier_or_qualifier $list};
+
+// init_declarator_list
+   ("init_declarator_list" init_declarator) -> q{$init_declarator};
+   ("init_declarator_list" init_declarator_list init_declarator ) ->
+      q{$init_declarator_list, $init_declarator};
+
+// init_declarator doubliziert
+   ("init_declarator" declarator) -> q{$declarator};
+   ("init_declarator" declarator initializer) -> q{$declarator = $initializer};
+
+// declarator
+   ("asm_labeled_declarator" declarator label) -> q{$declarator asm($label)};
+   ("declarator" direct_declarator) -> q{$direct_declarator};
+   ("declarator" pointer direct_declarator) -> q{$pointer $direct_declarator};
+   // gcc extensions for attributes
+   ("declarator_with_attributes" declarator attributes) ->
+      q{$attributes $declarator};
+
+// direct_declarator
+   ("direct_declarator" identifier) -> q{$identifier};
+   ("direct_declarator" ("()" ("declarator" *) as declarator)) ->
+      q{($declarator)};
+   ("direct_declarator" ("direct_declarator" *) as ddeclarator ("[]")) ->
+      q{$ddeclarator[]};
+   ("direct_declarator" ("direct_declarator" *) as ddeclarator
+	 ("[]" ("expression" expr))) ->
+      q{$ddeclarator[$expr]};
+   ("direct_declarator" ("direct_declarator" *) as ddeclarator
+	 ("[]" qualifiers ("expression" expr))) ->
+      q{$ddeclarator[$qualifiers $expr]};
+   ("direct_declarator" ddeclarator ("[]" ("*"))) ->
+      q{$ddeclarator[*]};
+   ("direct_declarator" ("direct_declarator" *) as ddeclarator
+      ("[]" ("static") ("expression" *) as assignment)) ->
+	 q{$ddeclarator[static $assignment]};
+   ("direct_declarator" ("direct_declarator" *) as ddeclarator
+      ("[]" ("type_qualifier_list" *) as tql
+      ("expression" *) as assignment)) ->
+	 q{$ddeclarator[$tql $assignment]};
+   ("direct_declarator" ("direct_declarator" *) as ddeclarator
+      ("[]" ("static") ("type_qualifier_list" *) as tql
+      ("expression" *) as assignment)) ->
+	 q{$ddeclarator[static $tql $assignment]};
+   ("direct_declarator" ("direct_declarator" *) as ddeclarator
+      ("[]" ("type_qualifier_list" *) as tql ("static")
+      ("expression" *) as assignment)) ->
+	 q{$ddeclarator[$tql static $assignment]};
+   ("direct_declarator" ("direct_declarator" *) as ddeclarator
+      ("[]" ("type_qualifier_list" *) as tql)) ->
+	 q{$ddeclarator[$tql]};
+   ("direct_declarator" ("direct_declarator" *) as ddeclarator
+      ("[]" ("type_qualifier_list" *) as tql ("*"))) ->
+	 q{$ddeclarator[$tql *]};
+   ("direct_declarator" ("direct_declarator" *) as ddeclarator
+      ("()" ("parameter_type_list" *) as params)) ->
+	 q{$ddeclarator($params)};
+   ("direct_declarator" ("direct_declarator" *) as ddeclarator
+      ("()" ("identifier_list" *) as identlist)) ->
+	 q{$ddeclarator($identlist)};
+   ("direct_declarator" ("direct_declarator" *) as ddeclarator
+      ("()")) -> q{$ddeclarator()};
+   // gcc extensions
+   ("direct_declarator_with_attributes" ddeclarator attributes) ->
+      q{$ddeclarator $attributes};
+
+// pointer
+   ("pointer") -> q{*};
+   ("pointer" qualifier) -> q{* $qualifier};
+   ("pointer" ("pointer" *) as pointer) -> q{*$pointer};
+   ("pointer" qualifier pointer) -> q{* $qualifier $pointer};
+
+// type_qualifier_list
+   ("type_qualifier_list" type_qualifier) -> q{$type_qualifier};
+   ("type_qualifier_list" type_qualifier_list type_qualifier) ->
+      q{$type_qualifier_list $type_qualifier};
+   ("type_qualifier_and_attribute_specifier_list" qs) -> q{$qs};
+   ("type_qualifier_and_attribute_specifier_list" list qs) -> q{$list $qs};
+
+// parameter_type_list
+   ("parameter_type_list" parameter_list) -> q{$parameter_list};
+   ("parameter_type_list" parameter_list ("...")) -> q{$parameter_list,...};
+
+// parameter_list
+   ("parameter_list" parameter_declaration) -> q{$parameter_declaration};
+   ("parameter_list" parameter_list parameter_declaration) ->
+      q{$parameter_list, $parameter_declaration};
+
+// parameter_declaration
+   ("parameter_declaration" declaration_specifiers
+      ("declarator" *) as declarator) ->
+	 q{$declaration_specifiers $declarator};
+   ("parameter_declaration" declaration_specifiers) ->
+      q{$declaration_specifiers};
+   ("parameter_declaration" declaration_specifiers
+      ("abstract_declarator" *) as abstract_declarator) ->
+	 q{$declaration_specifiers $abstract_declarator};
+
+// abstract_declarator
+  ("abstract_declarator" pointer_or_declarator) -> q{$pointer_or_declarator};
+  ("abstract_declarator" pointer declarator) -> q{$pointer $declarator};
+
+// direct_abstract_declarator
+   ("direct_abstract_declarator" ("()" declarator)) -> q{($declarator)};
+   ("direct_abstract_declarator" ("[]")) -> q{[]};
+   ("direct_abstract_declarator" ("[]" assignment)) -> q{[$assignment]};
+   ("direct_abstract_declarator" direct_abstract_declarator ("[]")) ->
+        q{$direct_abstract_declarator[]};
+   ("direct_abstract_declarator"
+      direct_abstract_declarator ("[]" assignment)) ->
+	 q{$direct_abstract_declarator[$assignment]};
+   ("direct_abstract_declarator" ("[]" ("*"))) -> q{[*]};
+   ("direct_abstract_declarator" direct_abstract_declarator ("[]" ("*"))) ->
+      q{$direct_abstract_declarator[*]};
+   ("direct_abstract_declarator" ("()")) -> q{()};
+   ("direct_abstract_declarator" ("()" parameter_type_list)) ->
+      q{($parameter_type_list)};
+   ("direct_abstract_declarator" direct_abstract_declarator ("()")) ->
+        q{$direct_abstract_declarator()};
+   ("direct_abstract_declarator" direct_abstract_declarator
+      ("()" parameter_type_list)) ->
+	 q{$direct_abstract_declarator($parameter_type_list)};
+
+// identifier_list
+   ("identifier_list" identifier) -> q{$identifier};
+   ("identifier_list" identifier_list identifier) ->
+      q{$identifier_list, $identifier};
+
+// labeled_statement
+   ("labeled_statement" label statement) -> q{
+      $label:
+      $statement
+   };
+   ("labeled_statement_with_attributes"
+	 ("labeled_statement" label statement) attributes) -> q{
+      $label: $attributes
+      $statement
+   };
+   ("case" constant_expression statement) -> q{
+      case $constant_expression:
+	 $statement
+   };
+   // gcc extension: http://gcc.gnu.org/onlinedocs/gcc/Case-Ranges.html
+   ("case" constant_expression_1 constant_expression_2 statement) -> q{
+      case $constant_expression_1 ... $constant_expression_2:
+	 $statement
+   };
+   ("default" statement) -> q{
+      default:
+	 $statement
+   };
+
+//compound_statement
+   ("compound_statement" stmt...) -> q{
+      {
+	 $stmt
+	 $...
+      }
+   };
+
+// expression_statement
+   ("expression_statement") -> q{;};
+   ("expression_statement" expression) -> q{$expression;};
+
+// if statement
+   ("if" expression statement) -> q{
+      if ($expression)
+	 $statement
+   };
+   ("if" expression statement statement1) -> q{
+      if ($expression)
+	 $statement
+      else
+	 $statement1
+   };
+
+// switch_or_iteration_statement
+   ("switch_or_iteration_statement" stmt) -> q{$stmt};
+   ("switch_statement" stmt) -> q{$stmt};
+   ("switch" expression statement) -> q{
+      switch ($expression)
+	 $statement
+   };
+   ("switch" expression ("compound_statement" stmt...)) -> q{
+      switch ($expression) {
+	 $stmt
+	 $...
+      }
+   };
+
+// iteration statements
+   ("iteration_statement" stmt) -> q{$stmt};
+   ("while" expression statement) -> q{
+      while ($expression)
+	 $statement
+   };
+   ("do" statement expression) -> q{
+      do
+	 $statement
+      while ($expression);
+   };
+   ("for" statement) -> q{
+      for (;;)
+	 $statement
+   };
+   ("for" expression expression1 expression2 statement) -> q{
+      for ($expression; $expression1; $expression2)
+	 $statement
+   };
+   ("for" expression expression1 ("expression") statement) -> q{
+      for ($expression; $expression1;)
+	 $statement
+   };
+   ("for" expression ("expression") expression1 statement) -> q{
+      for ($expression; ; $expression1)
+	 $statement
+   };
+   ("for" ("expression") expression expression1 statement) -> q{
+      for (; $expression; $expression1)
+	 $statement
+   };
+   ("for" expression ("expression") ("expression") statement) -> q{
+      for ($expression;;)
+	 $statement
+   };
+   ("for" ("expression") expression ("expression") statement) -> q{
+      for (; $expression;)
+	 $statement
+   };
+   ("for" ("expression") ("expression") expression statement) -> q{
+      for (;; $expression)
+	 $statement
+   };
+   ("for" ("declaration" *) as declaration
+	 expression expression1 statement) -> q{
+      for ($declaration $expression; $expression1) $statement
+   };
+   ("for" ("declaration" *) as declaration
+	 expression ("expression") statement) -> q{
+      for ($declaration $expression; )
+	 $statement
+   };
+   ("for" ("declaration" *) as declaration
+	 ("expression") expression statement) -> q{
+      for ($declaration; $expression)
+	 $statement
+   };
+   ("for" ("declaration" *) as declaration
+	 ("expression") ("expression") statement) -> q{
+      for ($declaration)
+	 $statement
+   };
+
+   ("goto" identifier) -> q{goto $identifier;};
+   ("continue") -> q{continue;};
+   ("break") -> q{break;};
+   ("return") -> q{return;};
+   ("return" expression) -> q{return $expression;};
+
+   ("integer_constant" decimal_constant) -> q{$decimal_constant};
+   ("integer_constant" octal_constant) -> q{$octal_constant};
+   ("integer_constant" hexadecimal_constant) -> q{$hexadecimal_constant};
+
+   ("character_constant" character_constant) -> q{$character_constant};
+
+   ("floating_constant" floating_constant) -> q{$floating_constant};
+   ("floating_constant" hexadecimal_floating_constant) ->
+       q{$hexadecimal_floating_constant};
+
+   ("type_name" name) -> q{$name};
+   ("int") -> q{int};
+   ("identifier" ident) -> q{$ident};
+   ("typedef_name" ident) -> q{$ident};
+   ("string_literal" s) -> q{$s};
+   ("string_literal" s1 s2) -> q{
+      $s1
+      $s2
+   };
+
+   // gcc extension for attributes
+   ("attribute_specifier_list" specifier) -> q{$specifier};
+   ("attribute_specifier_list" list specifier) -> q{$list $specifier};
+   ("attribute_specifier" attributes) -> q{__attribute__ (($attributes))};
+   ("attribute_list" list attribute) -> q{$list, $attribute};
+   ("attribute") -> q{};
+   ("attribute" name) -> q{$name};
+   ("attribute" name parameters) -> q{$name($parameters)};
+   ("attribute_name" ident) -> q{$ident};
+   ("attribute_parameters" parameters parameter) -> q{$parameters, $parameter};
+   ("attribute_parameter" parameter) -> q{$parameter};
+};

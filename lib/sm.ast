@@ -1,0 +1,250 @@
+/*
+   Copyright (C) 2010, 2011 Andreas Franz Borchert
+   ----------------------------------------------------------------------------
+   The Astl Library for C is free software; you can redistribute it
+   and/or modify it under the terms of the GNU Library General Public
+   License as published by the Free Software Foundation; either version
+   2 of the License, or (at your option) any later version.
+
+   The Astl Library for C is distributed in the hope that it will be
+   useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+   of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+   Library General Public License for more details.
+
+   You should have received a copy of the GNU Library General Public
+   License along with this library; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+*/
+
+/*
+   Abstract state machines for the C programming language
+*/
+
+import ops;
+import printer;
+import cfg;
+
+sub ast_summary {
+   var node = args[0];
+   var node_type = cfg_type(node);
+   var opening_types = {entry -> true, open_block -> true};
+   var closing_types = {exit -> true, close_block -> true};
+   var opening = exists opening_types{node_type};
+   var closing = exists closing_types{node_type};
+   var tree = node.astnode;
+   var text = gentext(tree);
+   var res;
+   if (res = text =~ m{([^\n]*)\n.*\n(.*)}) {
+      if (opening) {
+	 text = res[0];
+      } elsif (closing) {
+	 text = res[1];
+      } else {
+	 text = res[0] & " ... " & res[1];
+      }
+   } elsif (res = text =~ m{([^\n]*)\n(.*)}) {
+      if (opening) {
+	 text = res[0];
+      } elsif (closing) {
+	 text = res[1];
+      } else {
+	 text = res[0] & " ...";
+      }
+   }
+   return text;
+}
+
+sub extend_path {
+   var argi = 0;
+   var path = args[argi++];
+   var node = args[argi++];
+   var label = args[argi++];
+   var current_state = args[argi++];
+   var nestlevel = args[argi++];
+
+   if (exists path.node) {
+      // clone previous path entry and update next_state field
+      path = {
+	 next -> path.next,
+	 node -> path.node,
+	 label -> path.label,
+	 current_state -> path.current_state,
+	 next_state -> current_state,
+	 nestlevel -> path.nestlevel,
+      };
+   }
+   // insert new path entry in front
+   path = {
+      next -> path,
+      node -> node,
+      label -> label,
+      current_state -> current_state,
+      next_state -> current_state,
+      nestlevel -> nestlevel,
+   };
+   return path;
+}
+
+sub print_path {
+   var path = args[0];
+   var pl = [];
+   var p = path;
+   var prev_summary;
+   var prev_location;
+   var prev_state;
+   while (exists p.current_state) {
+      if (exists p.node.astnode && !exists p.node.hidden) {
+	 var tree = p.node.astnode;
+	 var summary = ast_summary(p.node);
+	 var loc = location(tree);
+	 if (!defined(prev_summary) || !defined(prev_location) ||
+		     !defined(prev_state) ||
+		     prev_summary != summary ||
+		     prev_location != loc ||
+		     p.current_state != p.next_state ||
+		     p.label != "" && p.label != "extern" ||
+		     p.next_state != prev_state) {
+	    push(pl, {
+	       node -> p.node,
+	       current_state -> p.current_state,
+	       next_state -> p.next_state,
+	       nestlevel -> p.nestlevel,
+	       label -> p.label,
+	       summary -> summary,
+	       loc -> loc,
+	    });
+	    prev_summary = summary;
+	    prev_location = loc;
+	    prev_state = p.current_state;
+	 }
+      }
+      p = p.next;
+   }
+   var i = len(pl);
+   var prev;
+   var prevloc;
+   var prevnestlevel;
+   while (i-- > 0) {
+      var p = pl[i];
+      var text = "   " x p.nestlevel;
+      // text &= p.summary & " @" & p.loc & " ";
+      text &= p.summary & " ";
+      if (p.next_state != p.current_state || !defined(prev) ||
+	    !defined(prevloc) || !defined(prevnestlevel) ||
+	    p.nestlevel != prevnestlevel || p.label != "" ||
+	    prev != text || prevloc != p.loc) {
+	 prev = text; prevloc = p.loc; prevnestlevel = p.nestlevel;
+	 if (p.label != "") {
+	    text &= " [" & p.label & "]";
+	 }
+	 var stext = "[" & p.current_state;
+	 if (exists p.next_state && p.next_state != p.current_state) {
+	    stext &= " -> " & p.next_state;
+	 }
+	 stext &= "]";
+	 var space = 79 - len(text) - len(stext);
+	 if (space > 0) {
+	    text &= " " x space & stext;
+	 } else {
+	    text &= " " & stext;
+	 }
+	 println(text);
+      }
+   }
+}
+
+abstract state machine local {
+   at actual_call if extern -> cut;
+   at exit -> cut;
+}
+
+abstract state machine global {
+   private var chain = {nestlevel -> 0};
+   at actual_call
+      if local -> cut;
+      if extern -> cache(node.branch.local) {
+	 chain = {
+	    nestlevel -> chain.nestlevel + 1,
+	    next -> chain,
+	    callid -> node.callid
+	 };
+      }
+   at rtn where chain.nestlevel == 0 || chain.callid != node.callid -> retract;
+   at rtn where chain.nestlevel > 0 && chain.callid == node.callid -> {
+      chain = chain.next;
+   }
+}
+
+abstract state machine global_tracker: global {
+   private var lastast;
+   private var path = {};
+   private var nestlevel = 0;
+   private var endless_recursion = false;
+
+   sub err {
+      if (defined(lastast)) {
+	 println(args, " at ", location(lastast));
+      } else {
+	 println(args);
+      }
+      println("backtrace:");
+      print_path(path);
+   }
+
+   at exit or close_block -> { --nestlevel; }
+
+   at * -> {
+      path = extend_path(path, node, label, current_state, nestlevel);
+      if (exists node.astnode) {
+	 lastast = node.astnode;
+      }
+   }
+
+   at entry or open_block -> { ++nestlevel; }
+
+   on close -> {
+      if (exists path.node && cfg_type(path.node) != "exit") {
+	 endless_recursion = true;
+      }
+   }
+}
+
+abstract state machine local_tracker: local {
+   private var path = {};
+   private var nestlevel = 0;
+   private var lastast;
+
+   sub err {
+      if (defined(lastast)) {
+	 println(args, " at ", location(lastast));
+      } else {
+	 println(args);
+      }
+      println("backtrace:");
+      print_path(path);
+   }
+
+   at close_block -> { --nestlevel; }
+
+   at * -> {
+      path = extend_path(path, node, label, current_state, nestlevel);
+      if (exists node.astnode) {
+	 lastast = node.astnode;
+      }
+   }
+
+   at open_block -> { ++nestlevel; }
+}
+
+abstract state machine local_variable: local_tracker {
+   shared var varname;
+   shared var vartype;
+   shared var block;
+
+   ("declaration" *) in ("compound_statement" *) as b at vardecl -> create {
+      varname = node.varname;
+      vartype = node.vartype;
+      block = b;
+   }
+   at close_block where node.astnode == block -> close;
+}

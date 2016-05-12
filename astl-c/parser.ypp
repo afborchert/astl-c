@@ -1,0 +1,1647 @@
+/*
+   Copyright (C) 2009-2011 Andreas Franz Borchert and Yan Wang
+   ----------------------------------------------------------------------------
+   The Astl Library for C is free software; you can redistribute it
+   and/or modify it under the terms of the GNU Library General Public
+   License as published by the Free Software Foundation; either version
+   2 of the License, or (at your option) any later version.
+
+   The Astl Library for C is distributed in the hope that it will be
+   useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+   of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+   Library General Public License for more details.
+
+   You should have received a copy of the GNU Library General Public
+   License along with this library; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+*/
+
+%{
+namespace AstlC {
+   class Scanner;
+   class SymTable;
+}
+
+#include <astl/syntax-tree.hpp>
+#include "symtable.hpp"
+#include "yystype.hpp"
+#include "scanner.hpp"
+#include "operators.hpp"
+#include "operators.hpp"
+#include "yytname.hpp"
+#include "symbol.hpp"
+#include <string>
+#include <cassert>
+
+using namespace Astl;
+
+/* since bison 3.x it is no longer yyloc but yyla.location... */
+#define YYLLOC (yyla.location)
+
+#define NODE(op) \
+   (SubnodePtr(new Node(make_loc(YYLLOC), Op::op)))
+#define UNARY(unop, op1) \
+   (SubnodePtr(new Node(make_loc(YYLLOC), Op::unop, (op1))))
+#define BINARY(binop, op1,op2) \
+   (SubnodePtr(new Node(make_loc(YYLLOC), Op::binop, (op1), (op2))))
+#define TERTIARY(top, op1,op2,op3) \
+   (SubnodePtr(new Node(make_loc(YYLLOC), Op::top, (op1), (op2), (op3))))
+#define QUATERNARY(top, op1,op2,op3,op4) \
+   (SubnodePtr(new Node(make_loc(YYLLOC), Op::top, (op1), (op2), (op3), (op4))))
+#define QUINARY(top, op1,op2,op3,op4,op5) \
+   (SubnodePtr(new Node(make_loc(YYLLOC), Op::top, (op1), (op2), (op3), (op4), (op5))))
+
+#define LEAF(tk) \
+   (SubnodePtr(new Node(make_loc(YYLLOC), Token(token::tk, yytname[token::tk - 255]))))
+
+#define INSERT(class, token) \
+   (symtab.insert(Symbol(class, \
+      token->is_leaf()? \
+	 token->get_token().get_text() : \
+	 token->get_operand(0)->get_token().get_text() \
+      )))
+
+#define FLATTEN(node, subnodes, op) \
+   (flatten(node, subnodes, Op::op))
+
+bool is_typedef(NodePtr node);
+void insert_idents(AstlC::SymTable& symtab, NodePtr node,
+   AstlC::SymbolClass cls);
+void insert_ident_in_declarator(AstlC::SymTable& symtab,
+      NodePtr node, AstlC::SymbolClass cls);
+void insert_ident_in_direct_declarator(AstlC::SymTable& symtab,
+      NodePtr node, AstlC::SymbolClass cls);
+NodePtr flatten(NodePtr node, NodePtr subnodes, const Operator& op);
+
+%}
+
+%skeleton "lalr1.cc"
+%define namespace "AstlC"
+%defines
+%verbose
+%locations
+%token-table
+%parse-param { Scanner& scanner }
+%parse-param { SymTable& symtab }
+%parse-param { Astl::SubnodePtr& root }
+%lex-param { Scanner& scanner }
+
+/* tokens of C99 in conformance to ISO 9899-1999 */
+
+/* keywords */
+
+%token	AUTO BREAK CASE CHAR CONST CONTINUE DEFAULT DO DOUBLE ELSE
+%token	ENUM EXTERN FLOAT FOR GOTO IF INLINE INT LONG REGISTER
+%token	RESTRICT RETURN SHORT SIGNED SIZEOF STATIC STRUCT SWITCH TYPEDEF
+%token	UNION UNSIGNED VOID VOLATILE WHILE _BOOL_T _COMPLEX_T _IMAGINARY_T
+
+/* common extensions to implement standard features */
+
+%token	VA_ARG
+
+/* gcc extensions */
+
+%token	ALIGNOF ASM ATTRIBUTE BUILTIN_OFFSETOF CHOOSE_EXPR TYPEOF
+%token	TYPES_COMPATIBLE_P UNREACHABLE
+
+/* composite tokens */
+
+%token	IDENT TYPE_IDENT
+
+/* literals */
+
+%token	DECIMAL_CONSTANT
+%token	OCTAL_CONSTANT
+%token	HEXADECIMAL_CONSTANT
+%token	DECIMAL_FLOATING_CONSTANT
+%token	HEXADECIMAL_FLOATING_CONSTANT
+%token	CHAR_CONSTANT
+%token	STRING_LITERAL
+
+/* punctuators */
+
+%token	LBRACKET RBRACKET
+%token	LPAREN RPAREN
+%token	LBRACE RBRACE
+%token	DOT ARROW
+%token	PLUSPLUS MINUSMINUS AMPERSAND STAR PLUS MINUS TILDE EXCLAMATION
+%token	SLASH PERCENT LTLT GTGT LT GT LE GE EQEQ NE CARET BAR
+%token	AND OR
+%token	QMARK COLON SEMICOLON DOTS
+%token	EQ STAR_EQ SLASH_EQ PERCENT_EQ PLUS_EQ MINUS_EQ LTLT_EQ GTGT_EQ
+%token	AMPERSAND_EQ CARET_EQ BAR_EQ COMMA HASH HASH_HASH
+%token	LT_COLON COLON_GT LT_PERCENT PERCENT_GT PERCENT_COLON
+%token	PERCENT_COLON_PERCENT_COLON
+
+%start	start
+
+%%
+
+start: symtab_open translation_unit symtab_close
+      { root = $2; }
+   ;
+
+/* artificial nonterminals for opening and closing the symbol table */
+symtab_open: /* empty */ { symtab.open(); }
+symtab_close: /* empty */ { symtab.close(); }
+
+translation_unit: semicolons external_declaration_list
+      { $$ = FLATTEN(NODE(translation_unit), $2, external_declaration_list); }
+   | semicolons /* empty */
+      { $$ = NODE(translation_unit); }
+   ;
+
+external_declaration_list: external_declaration
+   | external_declaration_list external_declaration
+      { $$ = BINARY(external_declaration_list, $1, $2); }
+   ;
+
+/* a scope gets always opened here as declaration can include
+   parameter lists which put all parameter names into the
+   current scope;
+   the scope is closed in the individual nonterminals below */
+external_declaration: function_definition semicolons
+      { $$ = UNARY(external_declaration, $1); }
+   | extended_declaration semicolons
+      { $$ = UNARY(external_declaration, $1); }
+   /* gcc extension for assembly instructions permits such
+      instructions also at this level to permit "handwritten"
+      .rodata declarations etc. */
+   | assembler_instructions SEMICOLON semicolons
+   ;
+
+/* extra semicolons that do not conform to ISO C
+   but are accepted by gcc and other compilers */
+semicolons: /* empty */
+   | sequence_of_semicolons
+   ;
+sequence_of_semicolons: SEMICOLON
+   | sequence_of_semicolons SEMICOLON
+   ;
+
+function_definition: std_function_definition
+   // support of K&R function style definitions without return types
+   | symtab_open regular_direct_declarator compound_statement symtab_close
+      {
+	 $$ = BINARY(function_definition,
+		  BINARY(declaration,
+		     UNARY(declaration_specifiers,
+			UNARY(type_specifier, NODE(INT))
+		     ),
+		     UNARY(init_declarator_list,
+			UNARY(init_declarator,
+			   UNARY(declarator, $2)))),
+		  $3);
+	 insert_ident_in_direct_declarator(symtab, $2, SC_UNKNOWN);
+      }
+   | symtab_open restricted_declaration_specifiers
+	 regular_direct_declarator compound_statement symtab_close
+      {
+	 $$ = BINARY(function_definition,
+		  BINARY(declaration,
+		     BINARY(declaration_specifiers, $2,
+			UNARY(type_specifier, NODE(INT))
+		     ),
+		     UNARY(init_declarator_list,
+			UNARY(init_declarator,
+			   UNARY(declarator, $3)))),
+		  $4);
+	 insert_ident_in_direct_declarator(symtab, $3, SC_UNKNOWN);
+      }
+   | symtab_open regular_direct_declarator declaration_list
+	 compound_statement symtab_close
+      {
+	 $$ = TERTIARY(function_definition,
+		  BINARY(declaration,
+		     UNARY(declaration_specifiers,
+			UNARY(type_specifier, NODE(INT))
+		     ),
+		     UNARY(init_declarator_list,
+			UNARY(init_declarator,
+			   UNARY(declarator, $2)))),
+		     $3, $4);
+	 insert_ident_in_direct_declarator(symtab, $2, SC_UNKNOWN);
+      }
+   | symtab_open restricted_declaration_specifiers
+	 regular_direct_declarator declaration_list compound_statement
+	 symtab_close
+      {
+	 $$ = TERTIARY(function_definition,
+		  BINARY(declaration,
+		     BINARY(declaration_specifiers, $2,
+			UNARY(type_specifier, NODE(INT))
+		     ),
+		     UNARY(init_declarator_list,
+			UNARY(init_declarator,
+			   UNARY(declarator, $3)))),
+		  $4, $5);
+	 insert_ident_in_direct_declarator(symtab, $3, SC_UNKNOWN);
+      }
+   ;
+
+/* the abstract syntax tree for function definitions is modeled
+   after regular declarations such that the corresponding attribution
+   rules can be shared
+*/
+std_function_definition: symtab_open extended_declaration_specifiers
+   declarator compound_statement symtab_close
+      {
+	 $$ = BINARY(function_definition,
+	    BINARY(declaration, $2, UNARY(init_declarator_list,
+	       UNARY(init_declarator, $3))), $4);
+	 insert_ident_in_declarator(symtab, $3, SC_UNKNOWN);
+      }
+   | symtab_open extended_declaration_specifiers declarator declaration_list
+	 compound_statement symtab_close
+      {
+	 $$ = TERTIARY(function_definition,
+	    BINARY(declaration, $2, UNARY(init_declarator_list,
+	       UNARY(init_declarator, $3))),
+	    $4, $5);
+	 insert_ident_in_declarator(symtab, $3, SC_UNKNOWN);
+      }
+   ;
+
+declaration_list: declaration
+   | declaration_list extended_declaration
+      { $$ = BINARY(declaration_list, $1, $2); }
+   ;
+primary_expression: identifier
+   | constant
+   | string_literal
+   | LPAREN embedded_expression RPAREN
+      { $$ = $2; }
+   | statement_expression
+   ;
+
+/* va_arg, usually substituted by a macro to __builtin_va_arg */
+va_arg: VA_ARG LPAREN expression COMMA type_name RPAREN
+      { $$ = BINARY(va_arg, $3, $5); }
+   ;
+
+/* see http://gcc.gnu.org/onlinedocs/gcc/Offsetof.html */
+builtin_offsetof: BUILTIN_OFFSETOF LPAREN
+	 type_name COMMA offsetof_member_designator RPAREN
+      { $$ = BINARY(builtin_offsetof, $3, $5); }
+   ;
+offsetof_member_designator: name
+   | offsetof_member_designator DOT name
+      { $$ = BINARY(DOT, $1, $3); }
+   | offsetof_member_designator LBRACKET expression RBRACKET
+      { $$ = BINARY(LBRACKET, $1, $3); }
+   ;
+
+/* see http://gcc.gnu.org/onlinedocs/gcc/Alignment.html */
+alignof_expr: ALIGNOF LPAREN type_name RPAREN
+      { $$ = UNARY(ALIGNOF, $3); }
+   | ALIGNOF LPAREN unary_expression RPAREN
+      { $$ = UNARY(ALIGNOF, $3); }
+   ;
+
+/* see http://gcc.gnu.org/onlinedocs/gcc-4.1.2/gcc/Other-Builtins.html */
+types_compatible_p: TYPES_COMPATIBLE_P LPAREN type_name COMMA type_name RPAREN
+      { $$ = BINARY(types_compatible_p, $3, $5); }
+   ;
+
+/* see http://gcc.gnu.org/onlinedocs/gcc-4.1.2/gcc/Other-Builtins.html
+   this is similar to the ?: conditional operator but it is evaluated
+   at compilation time, i.e. the first expression must be a constant
+   expression; this would even parse without this addition in the
+   parser but subsequently treated wrongly in cfg.ast as just either
+   of the two variants is evaluated */
+choose_expr: CHOOSE_EXPR LPAREN assignment_expression COMMA
+	 assignment_expression COMMA assignment_expression RPAREN
+      { $$ = TERTIARY(choose_expr, $3, $5, $7); }
+   ;
+
+/* see http://gcc.gnu.org/onlinedocs/gcc/Other-Builtins.html
+   this signals that this code cannot be reached in cases where
+   it cannot by deduced otherwise by the compiler;
+   this would also parse without this explicit construct but
+   then it would be easily overlooked in cfg.ast */
+unreachable: UNREACHABLE LPAREN RPAREN
+      { $$ = NODE(unreachable); }
+   ;
+
+// statement expressions are an gcc extension,
+// see http://gcc.gnu.org/onlinedocs/gcc/Statement-Exprs.html
+statement_expression: LPAREN compound_statement RPAREN
+      { $$ = UNARY(statement_expression, $2); }
+   ;
+
+postfix_expression: primary_expression
+   | function_call
+   | postfix_expression LBRACKET expression RBRACKET
+      { $$ = BINARY(LBRACKET, $1, $3); }
+   | postfix_expression DOT name
+      { $$ = BINARY(DOT, $1, $3); }
+   | postfix_expression ARROW name
+      { $$ = BINARY(ARROW, $1, $3); }
+   | postfix_plusplus
+   | postfix_minusminus
+   | LPAREN type_name RPAREN LBRACE initializer_list RBRACE
+      { $$ = BINARY(LBRACE, $2, $5); }
+   | LPAREN type_name RPAREN LBRACE initializer_list COMMA RBRACE
+      { $$ = BINARY(LBRACE, $2, $5); }
+   // gcc extensions
+   | assembler_instructions
+   | LPAREN type_name RPAREN LBRACE RBRACE
+      { $$ = UNARY(LBRACE, $2); }
+   | builtin_offsetof
+   | alignof_expr
+   | va_arg
+   | types_compatible_p
+   | choose_expr
+   | unreachable
+   ;
+
+postfix_plusplus: postfix_expression PLUSPLUS
+      { $$ = UNARY(postfix_plusplus, $1); }
+   ;
+postfix_minusminus: postfix_expression MINUSMINUS
+      { $$ = UNARY(postfix_minusminus, $1); }
+   ;
+
+function_call: postfix_expression LPAREN RPAREN
+      { $$ = UNARY(function_call, $1); }
+   | postfix_expression LPAREN argument_expression_list RPAREN
+      { $$ = BINARY(function_call, $1, $3); }
+   ;
+
+unary_expression: postfix_expression
+   | AMPERSAND cast_expression
+      { $$ = UNARY(AMPERSAND, $2); }
+   | pointer_dereference
+   | unary_plus
+   | unary_minus
+   | prefix_plusplus
+   | prefix_minusminus
+   | TILDE cast_expression
+      { $$ = UNARY(TILDE, $2); }
+   | EXCLAMATION cast_expression
+      { $$ = UNARY(EXCLAMATION, $2); }
+   | SIZEOF unary_expression
+      { $$ = UNARY(SIZEOF, $2); }
+   | SIZEOF LPAREN type_name RPAREN
+      { $$ = UNARY(SIZEOF, $3); }
+   /* gcc extension: http://gcc.gnu.org/onlinedocs/gcc/Labels-as-Values.html */
+   | label_as_value
+   ;
+
+/* gcc extension: http://gcc.gnu.org/onlinedocs/gcc/Labels-as-Values.html */
+label_as_value: AND identifier
+      { $$ = UNARY(label_as_value, $2); }
+   ;
+
+prefix_plusplus: PLUSPLUS unary_expression
+      { $$ = UNARY(prefix_plusplus, $2); }
+   ;
+prefix_minusminus: MINUSMINUS unary_expression
+      { $$ = UNARY(prefix_minusminus, $2); }
+   ;
+unary_plus: PLUS cast_expression
+      { $$ = UNARY(unary_plus, $2); }
+   ;
+unary_minus: MINUS cast_expression
+      { $$ = UNARY(unary_minus, $2); }
+   ;
+pointer_dereference: STAR cast_expression
+      { $$ = UNARY(pointer_dereference, $2); }
+   ;
+
+cast_expression: unary_expression
+   | LPAREN type_name RPAREN cast_expression
+      { $$ = BINARY(cast_expression, $2, $4); }
+   ;
+
+multiplicative_expression: cast_expression
+   | multiplicative_expression STAR cast_expression
+      { $$ = BINARY(STAR, $1, $3); }
+   | multiplicative_expression SLASH cast_expression
+      { $$ = BINARY(SLASH, $1, $3); }
+   | multiplicative_expression PERCENT cast_expression
+      { $$ = BINARY(PERCENT, $1, $3); }
+   ;
+
+argument_expression_list: assignment_expression
+      { $$ = UNARY(argument_expression_list, $1); }
+   | argument_expression_list COMMA assignment_expression
+      { $$ = BINARY(argument_expression_list, $1, $3); }
+   ;
+assignment_expression: conditional_expression
+    | unary_expression EQ assignment_expression
+      { $$ = BINARY(EQ, $1, $3); }
+    | unary_expression STAR_EQ assignment_expression
+      { $$ = BINARY(STAR_EQ, $1, $3); }
+    | unary_expression SLASH_EQ assignment_expression
+      { $$ = BINARY(SLASH_EQ, $1, $3); }
+    | unary_expression PERCENT_EQ assignment_expression
+      { $$ = BINARY(PERCENT_EQ, $1, $3); }
+    | unary_expression PLUS_EQ assignment_expression
+      { $$ = BINARY(PLUS_EQ, $1, $3); }
+    | unary_expression MINUS_EQ assignment_expression
+      { $$ = BINARY(MINUS_EQ, $1, $3); }
+    | unary_expression LTLT_EQ assignment_expression
+      { $$ = BINARY(LTLT_EQ, $1, $3); }
+    | unary_expression GTGT_EQ assignment_expression
+      { $$ = BINARY(GTGT_EQ, $1, $3); }
+    | unary_expression AMPERSAND_EQ assignment_expression
+      { $$ = BINARY(AMPERSAND_EQ, $1, $3); }
+    | unary_expression CARET_EQ assignment_expression
+      { $$ = BINARY(CARET_EQ, $1, $3); }
+    | unary_expression BAR_EQ assignment_expression
+      { $$ = BINARY(BAR_EQ, $1, $3); }
+     ;
+
+// expression used as a condition in if or iterative statements
+condition: expression
+      { $$ = UNARY(condition, $1); }
+   ;
+
+expression: embedded_expression
+      { $$ = UNARY(expression, $1); }
+   ;
+embedded_expression: assignment_expression
+   | expression COMMA assignment_expression
+      { $$ = BINARY(COMMA, $1, $3); }
+   ;
+
+initializer: assignment_expression
+      { $$ = UNARY(initializer, UNARY(expression, $1)); }
+   | LBRACE RBRACE
+      /* empty initializers are permitted by gcc */
+      { $$ = NODE(initializer); }
+   | LBRACE initializer_list RBRACE
+      { $$ = UNARY(initializer, $2); }
+   | LBRACE initializer_list COMMA RBRACE
+      { $$ = UNARY(initializer, $2); }
+   ;
+
+initializer_list: initializer
+      { $$ = UNARY(initializer_list, $1); }
+   | designation initializer
+      { $$ = BINARY(initializer_list, $1, $2); }
+   | initializer_list COMMA initializer
+      { $$ = BINARY(initializer_list, $1, $3); }
+   | initializer_list COMMA designation initializer
+      { $$ = TERTIARY(initializer_list, $1, $3, $4); }
+   ;
+designation: designator_list EQ
+      { $$ = UNARY(designation, $1); }
+   /* old gcc syntax, obsolete since gcc 2.5 but still in use */
+   | name COLON
+      { $$ = UNARY(designation, UNARY(DOT, $1)); }
+   ;
+designator_list: LBRACKET constant_expression RBRACKET
+      { $$ = UNARY(LBRACKET, $2); }
+   | DOT name
+      { $$ = UNARY(DOT, $2); }
+   | designator_list LBRACKET constant_expression RBRACKET
+      { $$ = BINARY(LBRACKET, $1, $3); }
+   | designator_list DOT name
+      { $$ = BINARY(DOT, $1, $3); }
+   /* gcc extension:
+      http://gcc.gnu.org/onlinedocs/gcc-3.3.1/gcc/Designated-Inits.html */
+   | designated_range
+   ;
+
+/* gcc extension:
+   http://gcc.gnu.org/onlinedocs/gcc-3.3.1/gcc/Designated-Inits.html */
+designated_range: LBRACKET constant_expression
+	 DOTS constant_expression RBRACKET
+      { $$ = BINARY(designated_range, $2, $4); }
+   ;
+
+constant_expression: conditional_expression
+   ;
+conditional_expression: logical_or_expression
+   | logical_or_expression QMARK embedded_expression COLON conditional_expression
+      { $$ = TERTIARY(conditional_expression, $1, $3, $5); }
+   /* gcc extension: http://gcc.gnu.org/onlinedocs/gcc/Conditionals.html */
+   | logical_or_expression QMARK COLON conditional_expression
+      { $$ = BINARY(conditional_expression, $1, $4); }
+   ;
+logical_or_expression: logical_and_expression
+   | logical_or_expression OR logical_and_expression
+      { $$ = BINARY(OR, $1, $3); }
+   ;
+logical_and_expression: inclusive_or_expression
+   | logical_and_expression AND inclusive_or_expression
+      { $$ = BINARY(AND, $1, $3); }
+   ;
+inclusive_or_expression: exclusive_or_expression
+   | inclusive_or_expression BAR exclusive_or_expression
+      { $$ = BINARY(BAR, $1, $3); }
+   ;
+exclusive_or_expression: and_expression
+   | exclusive_or_expression CARET and_expression
+      { $$ = BINARY(CARET, $1, $3); }
+   ;
+and_expression: equality_expression
+   | and_expression AMPERSAND equality_expression
+      { $$ = BINARY(AMPERSAND, $1, $3); }
+   ;
+equality_expression: relational_expression
+   | equality_expression EQEQ relational_expression
+      { $$ = BINARY(EQEQ, $1, $3); }
+   | equality_expression NE relational_expression
+      { $$ = BINARY(NE, $1, $3); }
+   ;
+relational_expression: shift_expression
+   | relational_expression LT shift_expression
+      { $$ = BINARY(LT, $1, $3); }
+   | relational_expression GT shift_expression
+      { $$ = BINARY(GT, $1, $3); }
+   | relational_expression LE shift_expression
+      { $$ = BINARY(LE, $1, $3); }
+   | relational_expression GE shift_expression
+      { $$ = BINARY(GE, $1, $3); }
+   ;
+shift_expression: additive_expression
+   | shift_expression LTLT additive_expression
+      { $$ = BINARY(LTLT, $1, $3); }
+   | shift_expression GTGT additive_expression
+      { $$ = BINARY(GTGT, $1, $3); }
+   ;
+additive_expression: multiplicative_expression
+   | additive_expression PLUS multiplicative_expression
+      { $$ = BINARY(PLUS, $1, $3); }
+   | additive_expression MINUS multiplicative_expression
+      { $$ = BINARY(MINUS, $1, $3); }
+   ;
+
+/* gcc extension: http://gcc.gnu.org/onlinedocs/gcc/Extended-Asm.html */
+
+assembler_instructions: ASM LPAREN assembler_spec RPAREN
+      { $$ = UNARY(assembler_instructions, $3); }
+   | ASM VOLATILE LPAREN assembler_spec RPAREN
+      { $$ = BINARY(assembler_instructions, NODE(VOLATILE), $4); }
+   | ASM GOTO LPAREN asm_goto_spec RPAREN
+      { $$ = BINARY(assembler_instructions, NODE(GOTO), $4); }
+   ;
+assembler_spec: string_literal
+      { $$ = UNARY(assembler_spec, $1); }
+   | string_literal COLON asm_operands
+      { $$ = BINARY(assembler_spec, $1, $3); }
+   | string_literal COLON asm_operands COLON asm_operands
+      { $$ = TERTIARY(assembler_spec, $1, $3, $5); }
+   | string_literal COLON asm_operands COLON asm_operands
+	 COLON asm_clobbered_objects
+      { $$ = QUATERNARY(assembler_spec, $1, $3, $5, $7); }
+   ;
+
+asm_goto_spec: string_literal COLON asm_operands COLON asm_operands
+	 COLON asm_clobbered_objects COLON identifier_list
+      { $$ = QUINARY(asm_goto_spec, $1, $3, $5, $7, $9); }
+   ;
+
+asm_operands: /* empty */
+      { $$ = NODE(asm_operands); }
+   | asm_operand
+      { $$ = UNARY(asm_operands, $1); }
+   | asm_operands COMMA asm_operand
+      { $$ = BINARY(asm_operands, $1, $3); }
+   ;
+
+asm_operand: string_literal
+      { $$ = UNARY(asm_operand, $1); }
+   | string_literal LPAREN expression RPAREN
+      { $$ = BINARY(asm_operand, $1, $3); }
+   | LBRACKET identifier RBRACKET string_literal LPAREN expression RPAREN
+      { $$ = TERTIARY(asm_operand, $2, $4, $6); }
+   ;
+
+asm_clobbered_objects: /* empty */
+      { $$ = NODE(asm_clobbered_objects); }
+   | asm_clobbered_object
+   | asm_clobbered_objects COMMA asm_clobbered_object
+      { $$ = BINARY(asm_clobbered_objects, $1, $3); }
+   ;
+
+asm_clobbered_object: string_literal;
+
+asm_labeled_declarator: declarator ASM LPAREN string_literal RPAREN
+      { $$ = BINARY(asm_labeled_declarator, $1, $4); }
+   ;
+
+declaration: declaration_specifiers SEMICOLON
+      { $$ = UNARY(declaration, $1); } 	
+   | declaration_specifiers init_declarator_list SEMICOLON
+      {
+	 $$ = BINARY(declaration, $1, $2);
+	 if (is_typedef($1)) {
+	    insert_idents(symtab, $2, SC_TYPE);
+	 } else {
+	    insert_idents(symtab, $2, SC_UNKNOWN);
+	 }
+      }
+   ;    			
+
+/* like a regular declaration but accepting extended
+   declaration specifiers with gcc attributes */
+extended_declaration: symtab_open
+	 extended_declaration_specifiers SEMICOLON symtab_close
+      { $$ = UNARY(declaration, $2); } 	
+   | symtab_open extended_declaration_specifiers init_declarator_list
+	 SEMICOLON symtab_close
+      {
+	 $$ = BINARY(declaration, $2, $3);
+	 if (is_typedef($2)) {
+	    insert_idents(symtab, $3, SC_TYPE);
+	 } else {
+	    insert_idents(symtab, $3, SC_UNKNOWN);
+	 }
+      }
+   ;    			
+
+/* according to ISO C-99 declaration specifiers must include a type */
+declaration_specifiers: type_specifier
+      { $$ = UNARY(declaration_specifiers, $1); }
+   | singular_type_specifier
+      { $$ = UNARY(declaration_specifiers, $1); }
+   | storage_class_specifier declaration_specifiers
+      { $$ = BINARY(declaration_specifiers, $1, $2); }
+   | type_specifier relaxed_declaration_specifiers
+      { $$ = BINARY(declaration_specifiers, $1, $2); }
+   | singular_type_specifier restricted_declaration_specifiers
+      { $$ = BINARY(declaration_specifiers, $1, $2); }
+   | type_qualifier declaration_specifiers
+      { $$ = BINARY(declaration_specifiers, $1, $2); }
+   | function_specifier declaration_specifiers
+      { $$ = BINARY(declaration_specifiers, $1, $2); }
+   ;
+
+/* like declaration_specifiers but accept gcc extension
+   that allows to give attribute specifiers;
+   this should not be permitted in all cases as in
+
+   int f(i) __attribute__((foo)) int i {}
+
+   it remains ambigious whether the attribute is associated
+   with the function f or the parameter i */
+extended_declaration_specifiers: type_specifier
+      { $$ = UNARY(declaration_specifiers, $1); }
+   | singular_type_specifier
+      { $$ = UNARY(declaration_specifiers, $1); }
+   | storage_class_specifier extended_declaration_specifiers
+      { $$ = BINARY(declaration_specifiers, $1, $2); }
+   | type_specifier relaxed_declaration_specifiers_with_extensions
+      { $$ = BINARY(declaration_specifiers, $1, $2); }
+   | singular_type_specifier restricted_declaration_specifiers_with_extensions
+      { $$ = BINARY(declaration_specifiers, $1, $2); }
+   | type_qualifier extended_declaration_specifiers
+      { $$ = BINARY(declaration_specifiers, $1, $2); }
+   | function_specifier extended_declaration_specifiers
+      { $$ = BINARY(declaration_specifiers, $1, $2); }
+   // gcc extension: http://gcc.gnu.org/onlinedocs/gcc/Attribute-Syntax.html
+   | attribute_specifier extended_declaration_specifiers
+      { $$ = BINARY(declaration_specifiers, $1, $2); }
+   ;
+
+/* non-singular type specifier already seen, attributes permitted */
+relaxed_declaration_specifiers_with_extensions: storage_class_specifier
+      { $$ = UNARY(declaration_specifiers, $1); }
+   | type_specifier
+      { $$ = UNARY(declaration_specifiers, $1); }
+   | type_qualifier
+      { $$ = UNARY(declaration_specifiers, $1); }
+   | function_specifier
+      { $$ = UNARY(declaration_specifiers, $1); }
+   | storage_class_specifier relaxed_declaration_specifiers_with_extensions
+      { $$ = BINARY(declaration_specifiers, $1, $2); }
+   | type_specifier relaxed_declaration_specifiers_with_extensions
+      { $$ = BINARY(declaration_specifiers, $1, $2); }
+   | type_qualifier relaxed_declaration_specifiers_with_extensions
+      { $$ = BINARY(declaration_specifiers, $1, $2); }
+   | function_specifier relaxed_declaration_specifiers_with_extensions
+      { $$ = BINARY(declaration_specifiers, $1, $2); }
+   // gcc extension: http://gcc.gnu.org/onlinedocs/gcc/Attribute-Syntax.html
+   | attribute_specifier
+      { $$ = UNARY(declaration_specifiers, $1); }
+   | attribute_specifier relaxed_declaration_specifiers_with_extensions
+      { $$ = BINARY(declaration_specifiers, $1, $2); }
+   ;
+
+/* restricted declaration specifiers that do not permit type specifiers,
+   gcc extensions permitted
+*/
+restricted_declaration_specifiers_with_extensions: storage_class_specifier
+      { $$ = UNARY(declaration_specifiers, $1); }
+   | type_qualifier
+      { $$ = UNARY(declaration_specifiers, $1); }
+   | function_specifier
+      { $$ = UNARY(declaration_specifiers, $1); }
+   | storage_class_specifier restricted_declaration_specifiers_with_extensions
+      { $$ = BINARY(declaration_specifiers, $1, $2); }
+   | type_qualifier restricted_declaration_specifiers_with_extensions
+      { $$ = BINARY(declaration_specifiers, $1, $2); }
+   | function_specifier restricted_declaration_specifiers_with_extensions
+      { $$ = BINARY(declaration_specifiers, $1, $2); }
+   // gcc extension: http://gcc.gnu.org/onlinedocs/gcc/Attribute-Syntax.html
+   | attribute_specifier
+      { $$ = UNARY(declaration_specifiers, $1); }
+   | attribute_specifier restricted_declaration_specifiers_with_extensions
+      { $$ = BINARY(declaration_specifiers, $1, $2); }
+   ;
+
+/* non-singular type specifier already seen */
+relaxed_declaration_specifiers: storage_class_specifier
+      { $$ = UNARY(declaration_specifiers, $1); }
+   | type_specifier
+      { $$ = UNARY(declaration_specifiers, $1); }
+   | type_qualifier
+      { $$ = UNARY(declaration_specifiers, $1); }
+   | function_specifier
+      { $$ = UNARY(declaration_specifiers, $1); }
+   | storage_class_specifier relaxed_declaration_specifiers
+      { $$ = BINARY(declaration_specifiers, $1, $2); }
+   | type_specifier relaxed_declaration_specifiers
+      { $$ = BINARY(declaration_specifiers, $1, $2); }
+   | type_qualifier relaxed_declaration_specifiers
+      { $$ = BINARY(declaration_specifiers, $1, $2); }
+   | function_specifier relaxed_declaration_specifiers
+      { $$ = BINARY(declaration_specifiers, $1, $2); }
+   ;
+/* restricted declaration specifiers that do not permit type specifiers */
+restricted_declaration_specifiers: storage_class_specifier
+      { $$ = UNARY(declaration_specifiers, $1); }
+   | type_qualifier
+      { $$ = UNARY(declaration_specifiers, $1); }
+   | function_specifier
+      { $$ = UNARY(declaration_specifiers, $1); }
+   | storage_class_specifier restricted_declaration_specifiers
+      { $$ = BINARY(declaration_specifiers, $1, $2); }
+   | type_qualifier restricted_declaration_specifiers
+      { $$ = BINARY(declaration_specifiers, $1, $2); }
+   | function_specifier restricted_declaration_specifiers
+      { $$ = BINARY(declaration_specifiers, $1, $2); }
+   ;
+
+storage_class_specifier: TYPEDEF
+      { $$ = UNARY(storage_class_specifier, NODE(TYPEDEF)); }
+   | EXTERN
+      { $$ = UNARY(storage_class_specifier, NODE(EXTERN)); }
+   | STATIC
+      { $$ = UNARY(storage_class_specifier, NODE(STATIC)); }
+   | AUTO
+      { $$ = UNARY(storage_class_specifier, NODE(AUTO)); }
+   | REGISTER
+      { $$ = UNARY(storage_class_specifier, NODE(REGISTER)); }
+   ;
+
+/* type specifiers that can be combined,
+   see also singular_type_specifier */
+type_specifier: CHAR
+      { $$ = UNARY(type_specifier, NODE(CHAR)); }
+   | SHORT
+      { $$ = UNARY(type_specifier, NODE(SHORT)); }
+   | INT
+      { $$ = UNARY(type_specifier, NODE(INT)); }
+   | LONG
+      { $$ = UNARY(type_specifier, NODE(LONG)); }
+   | FLOAT
+      { $$ = UNARY(type_specifier, NODE(FLOAT)); }
+   | DOUBLE
+      { $$ = UNARY(type_specifier, NODE(DOUBLE)); }
+   | SIGNED
+      { $$ = UNARY(type_specifier, NODE(SIGNED)); }
+   | UNSIGNED
+      { $$ = UNARY(type_specifier, NODE(UNSIGNED)); }
+   | _COMPLEX_T
+      { $$ = UNARY(type_specifier, NODE(_COMPLEX_T)); }
+   | _IMAGINARY_T
+      { $$ = UNARY(type_specifier, NODE(_IMAGINARY_T)); }
+   ;
+
+/* these type specifiers cannot be combined with other type specifiers */
+singular_type_specifier: VOID
+      { $$ = UNARY(type_specifier, NODE(VOID)); }
+   | _BOOL_T
+      { $$ = UNARY(type_specifier, NODE(_BOOL_T)); }
+   | struct_or_union_specifier
+      { $$ = UNARY(type_specifier, $1); }
+   | enum_specifier
+      { $$ = UNARY(type_specifier, $1); }
+   | typedef_name
+      { $$ = UNARY(type_specifier, $1); }
+   // gcc extensions: http://gcc.gnu.org/onlinedocs/gcc/Typeof.html
+   | TYPEOF LPAREN expression RPAREN
+      { $$ = UNARY(type_specifier, UNARY(TYPEOF, $3)); }
+   | TYPEOF LPAREN type_name RPAREN
+      { $$ = UNARY(type_specifier, UNARY(TYPEOF, $3)); }
+   ;
+
+function_specifier: INLINE
+      { $$ = UNARY(function_specifier, NODE(INLINE)); }
+   ;
+
+type_qualifier: CONST
+      { $$ = UNARY(type_qualifier, NODE(CONST)); }
+   | RESTRICT
+      { $$ = UNARY(type_qualifier, NODE(RESTRICT)); }
+   | VOLATILE
+      { $$ = UNARY(type_qualifier, NODE(VOLATILE)); }
+   ;
+
+struct_or_union_specifier: STRUCT LBRACE opt_struct_declaration_list RBRACE
+      { $$ = UNARY(STRUCT, $3); }
+   | STRUCT struct_name LBRACE opt_struct_declaration_list RBRACE
+      { $$ = BINARY(STRUCT, $2, $4); } 	
+   | UNION LBRACE opt_struct_declaration_list RBRACE
+      { $$ = UNARY(UNION, $3); }	
+   | UNION union_name LBRACE opt_struct_declaration_list RBRACE
+      { $$ = BINARY(UNION, $2, $4); }
+   | STRUCT struct_name
+      { $$ = UNARY(STRUCT, $2); }
+   | UNION union_name
+      { $$ = UNARY(UNION, $2); }
+   // gcc extension: http://gcc.gnu.org/onlinedocs/gcc/Attribute-Syntax.html
+   | struct_or_union_specifier_with_attributes
+   ;
+
+// gcc extension: http://gcc.gnu.org/onlinedocs/gcc/Attribute-Syntax.html
+struct_or_union_specifier_with_attributes:
+   STRUCT attribute_specifier_list LBRACE opt_struct_declaration_list RBRACE
+      { $$ = BINARY(struct_or_union_specifier_with_attributes,
+	       UNARY(STRUCT, $4), $2); }
+   | STRUCT attribute_specifier_list struct_name LBRACE
+	 opt_struct_declaration_list RBRACE
+      { $$ = BINARY(struct_or_union_specifier_with_attributes,
+	       BINARY(STRUCT, $3, $5), $2); }
+   | UNION attribute_specifier_list LBRACE opt_struct_declaration_list RBRACE
+      { $$ = BINARY(struct_or_union_specifier_with_attributes,
+	       UNARY(UNION, $4), $2); }
+   | UNION attribute_specifier_list union_name LBRACE
+	 opt_struct_declaration_list RBRACE
+      { $$ = BINARY(struct_or_union_specifier_with_attributes,
+	       BINARY(UNION, $3, $5), $2); }
+   ;
+
+struct_name: name
+      { $$ = UNARY(struct_name, $1); }
+   ;   
+union_name: name
+      { $$ = UNARY(union_name, $1); }
+   ;   
+enum_specifier: ENUM LBRACE enumerator_list RBRACE
+      { $$ = UNARY(ENUM, $3); }
+   | ENUM enum_name LBRACE enumerator_list RBRACE
+      { $$ = BINARY(ENUM, $2, $4); }
+   | ENUM LBRACE enumerator_list COMMA RBRACE
+      { $$ = UNARY(ENUM, $3); }
+   | ENUM enum_name LBRACE enumerator_list COMMA RBRACE
+      { $$ = BINARY(ENUM, $2, $4); }
+   | ENUM enum_name
+      { $$ = UNARY(ENUM, $2); }
+   // gcc extension: http://gcc.gnu.org/onlinedocs/gcc/Attribute-Syntax.html
+   | enum_specifier_with_attributes
+   ;
+
+// gcc extension: http://gcc.gnu.org/onlinedocs/gcc/Attribute-Syntax.html
+enum_specifier_with_attributes: ENUM attribute_specifier_list
+	 LBRACE enumerator_list RBRACE
+      { $$ = BINARY(enum_specifier_with_attributes, UNARY(ENUM, $4), $2); }
+   | ENUM attribute_specifier_list enum_name LBRACE enumerator_list RBRACE
+      { $$ = BINARY(enum_specifier_with_attributes, BINARY(ENUM, $3, $5), $2); }
+   | ENUM attribute_specifier_list LBRACE enumerator_list COMMA RBRACE
+      { $$ = BINARY(enum_specifier_with_attributes, UNARY(ENUM, $4), $2); }
+   | ENUM attribute_specifier_list enum_name LBRACE enumerator_list COMMA RBRACE
+      { $$ = BINARY(enum_specifier_with_attributes, BINARY(ENUM, $3, $5), $2); }
+   ;
+
+enum_name: name
+      { $$ = UNARY(enum_name, $1); }
+   ;
+// ISO C does not allow the struct declaration list to
+// be empty but many C compilers (like gcc) accept that
+opt_struct_declaration_list: semicolons struct_declaration_list
+      { $$ = $2; }
+   | semicolons /* empty */
+      { $$ = NODE(struct_declaration_list); }
+   ;
+
+struct_declaration_list: struct_declaration semicolons
+      { $$ = UNARY(struct_declaration_list, $1); }
+   | struct_declaration_list struct_declaration semicolons
+      { $$ = BINARY(struct_declaration_list, $1, $2); }
+   ;
+
+struct_declaration: specifier_qualifier_list struct_declarator_list SEMICOLON
+      { $$ = BINARY(struct_declaration, $1, $2); }
+   // gcc extension: http://gcc.gnu.org/onlinedocs/gcc/Unnamed-Fields.html
+   | struct_or_union_specifier SEMICOLON
+      { $$ = UNARY(struct_declaration, $1); }
+   ;
+
+type_name: specifier_qualifier_list
+      { $$ = UNARY(type_name, $1); }
+   | specifier_qualifier_list abstract_declarator
+      { $$ = BINARY(type_name, $1, $2); }
+   ;
+
+/* ISO C-99 insists on having at least one type specifier */
+specifier_qualifier_list: type_specifier
+      { $$ = UNARY(specifier_qualifier_list, $1); }
+   | singular_type_specifier
+      { $$ = UNARY(specifier_qualifier_list, $1); }
+   | type_specifier relaxed_specifier_qualifier_list
+      { $$ = BINARY(specifier_qualifier_list, $1, $2); }
+   | singular_type_specifier restricted_specifier_qualifier_list
+      { $$ = BINARY(specifier_qualifier_list, $1, $2); }
+   | type_qualifier specifier_qualifier_list
+      { $$ = BINARY(specifier_qualifier_list, $1, $2); }
+   ;
+
+/* one type specifier already seen, other non-singular type specifiers
+   may follow */
+relaxed_specifier_qualifier_list: type_specifier
+      { $$ = UNARY(specifier_qualifier_list, $1); }
+   | type_specifier relaxed_specifier_qualifier_list
+      { $$ = BINARY(specifier_qualifier_list, $1, $2); }
+   | type_qualifier
+      { $$ = UNARY(specifier_qualifier_list, $1); }
+   | type_qualifier relaxed_specifier_qualifier_list
+      { $$ = BINARY(specifier_qualifier_list, $1, $2); }
+   ;
+/* restricted specifier qualifier list that does not permit
+   any type specifiers */
+restricted_specifier_qualifier_list: type_qualifier
+      { $$ = UNARY(specifier_qualifier_list, $1); }
+   | type_qualifier restricted_specifier_qualifier_list
+      { $$ = BINARY(specifier_qualifier_list, $1, $2); }
+   ;
+
+struct_declarator_list: struct_declarator
+      { $$ = UNARY(struct_declarator_list, $1); }
+   | struct_declarator_list COMMA struct_declarator
+      { $$ = BINARY(struct_declarator_list, $1, $3); }
+   ;
+
+struct_declarator: declarator
+      { $$ = UNARY(struct_declarator, $1); }
+   | COLON constant_expression
+      { $$ = UNARY(struct_declarator, UNARY(COLON, $2)); }
+   | declarator COLON constant_expression
+      { $$ = BINARY(struct_declarator, $1, UNARY(COLON, $3)); }
+   ;
+
+enumerator_list: enumerator
+      { $$ = UNARY(enumerator_list, $1);}
+   | enumerator_list COMMA enumerator
+      { $$ = BINARY(enumerator_list, $1, $3); }
+   ;
+enumerator: enumeration_constant
+      { $$ = UNARY(enumerator, $1); }
+   | enumeration_constant EQ constant_expression
+      { $$ = BINARY(enumerator, $1, $3);}
+   ;
+enumeration_constant: identifier;
+
+init_declarator_list: init_declarator
+      { $$ = UNARY(init_declarator_list, $1); }
+   | init_declarator_list COMMA extended_init_declarator
+      { $$ = BINARY(init_declarator_list, $1, $3); }
+   ;
+init_declarator: declarator
+      { $$ = UNARY(init_declarator, $1); }
+   | declarator EQ initializer
+      { $$ = BINARY(init_declarator, $1, $3); }
+   // gcc extensions: http://gcc.gnu.org/onlinedocs/gcc/Asm-Labels.html
+   | asm_labeled_declarator
+      { $$ = UNARY(init_declarator, $1); }
+   | asm_labeled_declarator EQ initializer
+      { $$ = BINARY(init_declarator, $1, $3); }
+   ;
+
+// init_declarator with gcc attributes
+extended_init_declarator: extended_declarator
+      { $$ = UNARY(init_declarator, $1); }
+   | extended_declarator EQ initializer
+      { $$ = BINARY(init_declarator, $1, $3); }
+   // gcc extensions: http://gcc.gnu.org/onlinedocs/gcc/Asm-Labels.html
+   | asm_labeled_declarator
+      { $$ = UNARY(init_declarator, $1); }
+   | asm_labeled_declarator EQ initializer
+      { $$ = BINARY(init_declarator, $1, $3); }
+   ;
+
+declarator: direct_declarator
+      { $$ = UNARY(declarator, $1); }
+   | pointer direct_declarator
+      { $$ = BINARY(declarator, $1, $2); }
+   ;
+
+// declarator with gcc extensions
+extended_declarator: direct_declarator
+      { $$ = UNARY(declarator, $1); }
+   | pointer direct_declarator
+      { $$ = BINARY(declarator, $1, $2); }
+   // gcc extensions: http://gcc.gnu.org/onlinedocs/gcc/Attribute-Syntax.html
+   | declarator_with_attributes
+   ;
+
+// gcc extensions: http://gcc.gnu.org/onlinedocs/gcc/Attribute-Syntax.html
+declarator_with_attributes: attribute_specifier_list direct_declarator
+      { $$ = BINARY(declarator_with_attributes, UNARY(declarator, $2), $1); }
+   | attribute_specifier_list pointer direct_declarator
+      { $$ = BINARY(declarator_with_attributes,
+	 BINARY(declarator, $2, $3), $1); }
+   ;
+
+/* see comment below at restricted_direct_declarator */
+restricted_declarator: restricted_direct_declarator
+      { $$ = UNARY(declarator, $1); }
+   | pointer restricted_direct_declarator
+      { $$ = BINARY(declarator, $1, $2); }
+   ;
+
+/* direct declarator including a hack that accepts a type name as well
+   if it happen to be redefined through this declarator */
+direct_declarator: LPAREN extended_declarator RPAREN
+      { $$ = UNARY(direct_declarator, UNARY(LPAREN, $2)); }
+   | identifier
+      { $$ = UNARY(direct_declarator, $1); }
+   /* bad programming style allows a type name to be redefined */
+   | typedef_name
+      { $$ = UNARY(direct_declarator, UNARY(identifier, $1->get_operand(0))); }
+   | direct_declarator LBRACKET RBRACKET
+      { $$ = BINARY(direct_declarator, $1, NODE(LBRACKET)); }
+   | direct_declarator LBRACKET assignment_expression RBRACKET
+      { $$ = BINARY(direct_declarator, $1,
+	 UNARY(LBRACKET, UNARY(expression, $3))); }
+   | direct_declarator
+	 LBRACKET type_qualifier_list assignment_expression RBRACKET
+      { $$ = BINARY(direct_declarator, $1,
+	    BINARY(LBRACKET, $3, UNARY(expression, $4))); }
+   | direct_declarator LBRACKET type_qualifier_list RBRACKET
+      { $$ = BINARY(direct_declarator, $1, UNARY(LBRACKET, $3)); }
+   | direct_declarator LBRACKET STATIC assignment_expression RBRACKET
+      { $$ = BINARY(direct_declarator, $1,
+	 BINARY(LBRACKET, NODE(STATIC), UNARY(expression, $4))); }
+   | direct_declarator LBRACKET STATIC
+	 type_qualifier_list assignment_expression RBRACKET
+      { $$ = BINARY(direct_declarator, $1,
+	 TERTIARY(LBRACKET, NODE(STATIC), $4,
+	 UNARY(expression, $5))); }
+   | direct_declarator LBRACKET type_qualifier_list STATIC
+	 assignment_expression RBRACKET
+      { $$ = BINARY(direct_declarator, $1,
+	 TERTIARY(LBRACKET, $3, NODE(STATIC), UNARY(expression, $5))); }
+   | direct_declarator LBRACKET STAR RBRACKET
+      { $$ = BINARY(direct_declarator, $1, UNARY(LBRACKET, NODE(STAR))); }
+   | direct_declarator LBRACKET type_qualifier_list STAR RBRACKET
+      { $$ = BINARY(direct_declarator, $1,
+	 BINARY(LBRACKET, $3, NODE(STAR))); }
+   | direct_declarator LPAREN parameter_type_list RPAREN
+      { $$ = BINARY(direct_declarator, $1, UNARY(LPAREN, $3)); }
+   | direct_declarator LPAREN RPAREN
+      { $$ = BINARY(direct_declarator, $1, NODE(LPAREN)); }
+   | direct_declarator LPAREN identifier_list RPAREN
+      { $$ = BINARY(direct_declarator, $1, UNARY(LPAREN, $3)); }
+   // gcc extension: http://gcc.gnu.org/onlinedocs/gcc/Attribute-Syntax.html
+   | direct_declarator_with_attributes
+   ;
+
+// gcc extension: http://gcc.gnu.org/onlinedocs/gcc/Attribute-Syntax.html
+direct_declarator_with_attributes:
+   direct_declarator LPAREN parameter_type_list RPAREN attribute_specifier_list
+      { $$ = BINARY(direct_declarator_with_attributes,
+	       BINARY(direct_declarator, $1, UNARY(LPAREN, $3)), $5); }
+   | direct_declarator LPAREN RPAREN attribute_specifier_list
+      { $$ = BINARY(direct_declarator_with_attributes,
+	       BINARY(direct_declarator, $1, NODE(LPAREN)), $4); }
+   | direct_declarator LPAREN identifier_list RPAREN attribute_specifier_list
+      { $$ = BINARY(direct_declarator_with_attributes,
+	       BINARY(direct_declarator, $1, UNARY(LPAREN, $3)), $5); }
+   | identifier attribute_specifier_list
+      { $$ = BINARY(direct_declarator_with_attributes,
+	       UNARY(direct_declarator, $1), $2); }
+   ;
+
+/* regular direct declarator that does not accept type names;
+   required for non-standard function definitions to work
+*/
+regular_direct_declarator: LPAREN extended_declarator RPAREN
+      { $$ = UNARY(direct_declarator, UNARY(LPAREN, $2)); }
+   | identifier
+      { $$ = UNARY(direct_declarator, $1); }
+   | regular_direct_declarator LBRACKET RBRACKET
+      { $$ = BINARY(direct_declarator, $1, NODE(LBRACKET)); }
+   | regular_direct_declarator LBRACKET assignment_expression RBRACKET
+      { $$ = BINARY(direct_declarator, $1,
+	 UNARY(LBRACKET, UNARY(expression, $3))); }
+   | regular_direct_declarator
+	 LBRACKET type_qualifier_list assignment_expression RBRACKET
+      { $$ = BINARY(direct_declarator, $1,
+	 BINARY(LBRACKET, $3, UNARY(expression, $4))); }
+   | regular_direct_declarator LBRACKET type_qualifier_list RBRACKET
+      { $$ = BINARY(direct_declarator, $1, UNARY(LBRACKET, $3)); }
+   | regular_direct_declarator LBRACKET STATIC assignment_expression RBRACKET
+      { $$ = BINARY(direct_declarator, $1,
+	 BINARY(LBRACKET, NODE(STATIC), UNARY(expression, $4))); }
+   | regular_direct_declarator LBRACKET STATIC
+	 type_qualifier_list assignment_expression RBRACKET
+      { $$ = BINARY(direct_declarator, $1,
+	 TERTIARY(LBRACKET, NODE(STATIC), $4, UNARY(expression, $5))); }
+   | regular_direct_declarator LBRACKET type_qualifier_list STATIC
+	 assignment_expression RBRACKET
+      { $$ = BINARY(direct_declarator, $1,
+	 TERTIARY(LBRACKET, $3, NODE(STATIC), UNARY(expression, $5))); }
+   | regular_direct_declarator LBRACKET STAR RBRACKET
+      { $$ = BINARY(direct_declarator, $1, UNARY(LBRACKET, NODE(STAR))); }
+   | regular_direct_declarator LBRACKET type_qualifier_list STAR RBRACKET
+      { $$ = BINARY(direct_declarator, $1,
+	 BINARY(LBRACKET, $3, NODE(STAR))); }
+   | regular_direct_declarator LPAREN parameter_type_list RPAREN
+      { $$ = BINARY(direct_declarator, $1, UNARY(LPAREN, $3)); }
+   | regular_direct_declarator LPAREN RPAREN
+      { $$ = BINARY(direct_declarator, $1, NODE(LPAREN)); }
+   | regular_direct_declarator LPAREN identifier_list RPAREN
+      { $$ = BINARY(direct_declarator, $1, UNARY(LPAREN, $3)); }
+   ;
+
+/* used in parameter lists to avoid a conflict in following case:
+
+   typedef int Integer;
+   int f(int (Integer));
+
+   At that point we do not know whether we have an parameter
+   of type named Integer or a parameter of function type that
+   accepts a parameter of type Integer.
+
+   The restricted_direct_declarator does not include
+   the rule direct_declarator -> LPAREN declarator RPAREN
+   at the top level to give the abstract declarator precedence
+   over the declarator in this case.
+*/
+restricted_direct_declarator: identifier
+      { $$ = UNARY(direct_declarator, $1); }
+   /* bad programming style allows a type name to be redefined */
+   | typedef_name
+      { $$ = UNARY(direct_declarator, UNARY(identifier, $1->get_operand(0))); }
+   /* permit parentheses if a pointer type is used */
+   | LPAREN pointer restricted_direct_declarator RPAREN
+      { $$ = UNARY(direct_declarator,
+	       UNARY(LPAREN, BINARY(declarator, $2, $3))); }
+   | restricted_direct_declarator LBRACKET RBRACKET
+      { $$ = BINARY(direct_declarator, $1, NODE(LBRACKET)); }
+   | restricted_direct_declarator LBRACKET assignment_expression RBRACKET
+      { $$ = BINARY(direct_declarator, $1,
+	 UNARY(LBRACKET, UNARY(expression, $3))); }
+   | restricted_direct_declarator
+	 LBRACKET type_qualifier_list assignment_expression RBRACKET
+      { $$ = BINARY(direct_declarator, $1,
+	 BINARY(LBRACKET, $3, UNARY(expression, $4))); }
+   | restricted_direct_declarator LBRACKET type_qualifier_list RBRACKET
+      { $$ = BINARY(direct_declarator, $1, UNARY(LBRACKET, $3)); }
+   | restricted_direct_declarator LBRACKET STATIC assignment_expression RBRACKET
+      { $$ = BINARY(direct_declarator, $1,
+	 BINARY(LBRACKET, NODE(STATIC), UNARY(expression, $4))); }
+   | restricted_direct_declarator LBRACKET STATIC
+	 type_qualifier_list assignment_expression RBRACKET
+      { $$ = BINARY(direct_declarator, $1,
+	 TERTIARY(LBRACKET, NODE(STATIC), $4, UNARY(expression, $5))); }
+   | restricted_direct_declarator LBRACKET type_qualifier_list STATIC
+	 assignment_expression RBRACKET
+      { $$ = BINARY(direct_declarator, $1,
+	 TERTIARY(LBRACKET, $3, NODE(STATIC), UNARY(expression, $5))); }
+   | restricted_direct_declarator LBRACKET STAR RBRACKET
+      { $$ = BINARY(direct_declarator, $1, UNARY(LBRACKET, NODE(STAR))); }
+   | restricted_direct_declarator LBRACKET type_qualifier_list STAR RBRACKET
+      { $$ = BINARY(direct_declarator, $1,
+	 BINARY(LBRACKET, $3, NODE(STAR))); }
+   | restricted_direct_declarator LPAREN parameter_type_list RPAREN
+      { $$ = BINARY(direct_declarator, $1, UNARY(LPAREN, $3)); }
+   | restricted_direct_declarator LPAREN RPAREN
+      { $$ = BINARY(direct_declarator, $1, NODE(LPAREN)); }
+   | restricted_direct_declarator LPAREN identifier_list RPAREN
+      { $$ = BINARY(direct_declarator, $1, UNARY(LPAREN, $3)); }
+   // gcc extension: http://gcc.gnu.org/onlinedocs/gcc/Attribute-Syntax.html
+   | restricted_direct_declarator_with_attributes
+   ;
+
+// gcc extension: http://gcc.gnu.org/onlinedocs/gcc/Attribute-Syntax.html
+restricted_direct_declarator_with_attributes:
+   restricted_direct_declarator
+      LPAREN parameter_type_list RPAREN attribute_specifier_list
+      { $$ = BINARY(direct_declarator_with_attributes,
+	       BINARY(direct_declarator, $1, UNARY(LPAREN, $3)), $5); }
+   | restricted_direct_declarator LPAREN RPAREN attribute_specifier_list
+      { $$ = BINARY(direct_declarator_with_attributes,
+	       BINARY(direct_declarator, $1, NODE(LPAREN)), $4); }
+   | restricted_direct_declarator LPAREN identifier_list RPAREN
+      attribute_specifier_list
+      { $$ = BINARY(direct_declarator_with_attributes,
+	       BINARY(direct_declarator, $1, UNARY(LPAREN, $3)), $5); }
+   | identifier attribute_specifier_list
+      { $$ = BINARY(direct_declarator_with_attributes,
+	       UNARY(direct_declarator, $1), $2); }
+   ;
+
+pointer: STAR
+      { $$ = NODE(pointer); }
+   | STAR type_qualifier_and_attribute_specifier_list
+      { $$ = UNARY(pointer, $2); }
+   | STAR pointer
+      { $$ = UNARY(pointer, $2); }
+   | STAR type_qualifier_and_attribute_specifier_list pointer
+      { $$ = BINARY(pointer, $2, $3); }
+   ;
+
+type_qualifier_list: type_qualifier
+      { $$ = UNARY(type_qualifier_list, $1); }
+   | type_qualifier_list type_qualifier
+      { $$ = BINARY(type_qualifier_list, $1, $2); }
+   ;
+
+type_qualifier_and_attribute_specifier_list: type_qualifier
+      { $$ = UNARY(type_qualifier_and_attribute_specifier_list, $1); }
+   | attribute_specifier
+      { $$ = UNARY(type_qualifier_and_attribute_specifier_list, $1); }
+   | type_qualifier_and_attribute_specifier_list type_qualifier
+      { $$ = BINARY(type_qualifier_and_attribute_specifier_list, $1, $2); }
+   | type_qualifier_and_attribute_specifier_list attribute_specifier
+      { $$ = BINARY(type_qualifier_and_attribute_specifier_list, $1, $2); }
+   ;
+
+parameter_type_list: parameter_list
+      { $$ = UNARY(parameter_type_list, $1); }
+   | parameter_list COMMA DOTS
+      { $$ = BINARY(parameter_type_list, $1, NODE(DOTS)); }
+   ;
+parameter_list: parameter_declaration
+      { $$ = UNARY(parameter_list, $1); }
+   | parameter_list COMMA parameter_declaration
+      { $$ = BINARY(parameter_list, $1, $3); }
+   ;
+/* to avoid a conflict between abstract_declarator and
+   and declarator (see comment at declarator above)
+   we use restricted_declarator here
+*/
+parameter_declaration: extended_declaration_specifiers restricted_declarator
+     {
+	$$ = BINARY(parameter_declaration, $1, $2);
+	insert_ident_in_declarator(symtab, $2, SC_UNKNOWN);
+     }
+   | extended_declaration_specifiers
+      { $$ = UNARY(parameter_declaration, $1); }
+   | extended_declaration_specifiers abstract_declarator
+     { $$ = BINARY(parameter_declaration, $1, $2); }
+   ;
+abstract_declarator: pointer
+      { $$ = UNARY(abstract_declarator, $1); }
+   | direct_abstract_declarator
+      { $$ = UNARY(abstract_declarator, $1); }
+   | pointer direct_abstract_declarator
+      { $$ = BINARY(abstract_declarator, $1, $2); }
+   ;
+direct_abstract_declarator: LPAREN abstract_declarator RPAREN
+      { $$ = UNARY(direct_abstract_declarator, UNARY(LPAREN, $2)); }
+   | LBRACKET RBRACKET
+      { $$ = UNARY(direct_abstract_declarator, NODE(LBRACKET)); }
+   | LBRACKET assignment_expression RBRACKET
+      { $$ = UNARY(direct_abstract_declarator,
+	 UNARY(LBRACKET, UNARY(expression, $2))); }
+   | direct_abstract_declarator LBRACKET RBRACKET
+      { $$ = BINARY(direct_abstract_declarator, $1, NODE(LBRACKET)); }
+   | direct_abstract_declarator LBRACKET assignment_expression RBRACKET
+      { $$ = BINARY(direct_abstract_declarator, $1,
+	 UNARY(LBRACKET, UNARY(expression, $3))); }
+   | LBRACKET STAR RBRACKET
+      { $$ = UNARY(direct_abstract_declarator, UNARY(LBRACKET, NODE(STAR))); }
+   | direct_abstract_declarator LBRACKET STAR RBRACKET
+      { $$ = BINARY(direct_abstract_declarator,
+	       $1, UNARY(LBRACKET, NODE(STAR))); }
+   | LPAREN RPAREN
+      { $$ = UNARY(direct_abstract_declarator, NODE(LPAREN)); }
+   | LPAREN parameter_type_list RPAREN
+      { $$ = UNARY(direct_abstract_declarator, UNARY(LPAREN, $2)); }
+   | direct_abstract_declarator LPAREN RPAREN
+      { $$ = BINARY(direct_abstract_declarator, $1, NODE(LPAREN)); }
+   | direct_abstract_declarator LPAREN parameter_type_list RPAREN
+      { $$ = BINARY(direct_abstract_declarator, $1, UNARY(LPAREN, $3)); }
+   ;
+identifier_list: identifier
+      { $$ = UNARY(identifier_list, $1); }
+   | identifier_list COMMA identifier
+      { $$ = BINARY(identifier_list, $1, $3); }
+   ;
+
+statement: labeled_statement
+   | compound_statement
+   | expression_statement
+   | if_statement
+   | switch_or_iteration_statement
+      { $$ = UNARY(switch_or_iteration_statement, $1); }
+   | jump_statement
+   ;
+
+switch_or_iteration_statement: iteration_statement
+      { $$ = UNARY(iteration_statement, $1); }
+   | switch_statement
+      { $$ = UNARY(switch_statement, $1); }
+   ;
+
+labeled_statement: identifier COLON statement
+      { $$ = BINARY(labeled_statement, $1, $3); }
+   // gcc extension: label with attributes
+   | labeled_statement_with_attributes
+   | CASE constant_expression COLON statement
+      { $$ = BINARY(CASE, $2, $4); }
+   /* gcc extension: case range, see
+      http://gcc.gnu.org/onlinedocs/gcc/Case-Ranges.html */
+   | CASE constant_expression DOTS constant_expression COLON
+	 statement
+      { $$ = TERTIARY(CASE, $2, $4, $6); }
+   | DEFAULT COLON statement
+      { $$ = UNARY(DEFAULT, $3); }
+   ;
+
+// gcc extension: http://gcc.gnu.org/onlinedocs/gcc/Attribute-Syntax.html
+labeled_statement_with_attributes: identifier COLON attribute_specifier_list
+	 statement
+      { $$ = BINARY(labeled_statement_with_attributes,
+	       BINARY(labeled_statement, $1, $4), $3); }
+   ;
+
+compound_statement: LBRACE RBRACE
+      { $$ = NODE(compound_statement); }
+   | LBRACE
+      { symtab.open(); }
+	 block_item_list RBRACE
+      {
+	 $$ = FLATTEN(NODE(compound_statement), $3, block_item_list);
+	 symtab.close();
+      }
+   ;
+block_item_list: block_item
+   | block_item_list block_item
+      { $$ = BINARY(block_item_list, $1, $2); }
+   ;
+block_item: extended_declaration
+   | statement
+   | std_function_definition // GCC extension for local functions
+   ;
+expression_statement: SEMICOLON
+      { $$ = NODE(expression_statement); }
+   | expression SEMICOLON
+      { $$ = UNARY(expression_statement, $1); }
+   ;
+
+if_statement: IF LPAREN condition RPAREN statement
+      { $$ = BINARY(IF, $3, $5); }
+   | IF LPAREN condition RPAREN statement ELSE statement
+      { $$ = TERTIARY(IF, $3, $5, $7); }
+   ;
+switch_statement: SWITCH LPAREN expression RPAREN statement
+      { $$ = BINARY(SWITCH, $3, $5); }
+   ;
+
+iteration_statement: WHILE LPAREN condition RPAREN statement
+      { $$ = BINARY(WHILE, $3, $5); }
+   | DO statement WHILE LPAREN condition RPAREN SEMICOLON
+      { $$ = BINARY(DO, $2, $5); }
+   | FOR LPAREN SEMICOLON SEMICOLON RPAREN statement
+      { $$ = UNARY(FOR, $6); }
+   // cases with one expression within (...)
+   | FOR LPAREN expression SEMICOLON SEMICOLON RPAREN statement
+      { $$ = QUATERNARY(FOR, $3, NODE(expression), NODE(expression), $7); }
+   | FOR LPAREN SEMICOLON condition SEMICOLON RPAREN statement
+      { $$ = QUATERNARY(FOR, NODE(expression), $4, NODE(expression), $7); }
+   | FOR LPAREN SEMICOLON SEMICOLON expression RPAREN statement
+      { $$ = QUATERNARY(FOR, NODE(expression), NODE(expression), $5, $7); }
+   // cases with two expressions within (...)
+   | FOR LPAREN expression SEMICOLON condition SEMICOLON RPAREN statement
+      { $$ = QUATERNARY(FOR, $3, $5, NODE(expression), $8); }
+   | FOR LPAREN expression SEMICOLON SEMICOLON expression RPAREN statement
+      { $$ = QUATERNARY(FOR, $3, NODE(expression), $6, $8); }
+   | FOR LPAREN SEMICOLON condition SEMICOLON expression RPAREN statement
+      { $$ = QUATERNARY(FOR, NODE(expression), $4, $6, $8); }
+   // standard case with three expressions within (...)
+   | FOR LPAREN expression SEMICOLON condition SEMICOLON expression
+               RPAREN statement
+      { $$ = QUATERNARY(FOR, $3, $5, $7, $9); }
+   // case with a declaration and no expression within (...)
+   | FOR LPAREN extended_declaration SEMICOLON RPAREN statement
+      { $$ = QUATERNARY(FOR, $3, NODE(expression), NODE(expression), $6); }
+   // case with a declaration and one expression within (...)
+   | FOR LPAREN extended_declaration condition SEMICOLON RPAREN statement
+      { $$ = QUATERNARY(FOR, $3, $4, NODE(expression), $7); }
+   | FOR LPAREN extended_declaration SEMICOLON expression RPAREN statement
+      { $$ = QUATERNARY(FOR, $3, NODE(expression), $5, $7); }
+   // case with a declaration and two expression within (...)
+   | FOR LPAREN extended_declaration condition SEMICOLON
+	 expression RPAREN statement
+      { $$ = QUATERNARY(FOR, $3, $4, $6, $8); }
+   ;
+
+jump_statement: GOTO identifier SEMICOLON
+      { $$ = UNARY(GOTO, $2); }
+   | CONTINUE SEMICOLON
+      { $$ = NODE(CONTINUE); }
+   | BREAK SEMICOLON
+      { $$ = NODE(BREAK); }
+   | RETURN SEMICOLON
+      { $$ = NODE(RETURN); }
+   | RETURN expression SEMICOLON
+      { $$ = UNARY(RETURN, $2); }
+   /* gcc extension that permits computed gotos:
+      http://gcc.gnu.org/onlinedocs/gcc/Labels-as-Values.html */
+   | computed_goto
+   ;
+
+/* gcc extension that permits computed gotos:
+   http://gcc.gnu.org/onlinedocs/gcc/Labels-as-Values.html */
+computed_goto: GOTO STAR embedded_expression SEMICOLON
+      { $$ = UNARY(computed_goto, UNARY(pointer_dereference, $3)); }
+   ;
+
+constant: integer_constant
+   | floating_constant
+   // enumeration_constant is in conflict with other identifiers
+   | character_constant
+   ;
+
+integer_constant: DECIMAL_CONSTANT
+      { $$ = UNARY(integer_constant, $1); }
+   | OCTAL_CONSTANT
+      { $$ = UNARY(integer_constant, $1); }
+   | HEXADECIMAL_CONSTANT
+      { $$ = UNARY(integer_constant, $1); }
+   ;
+
+character_constant: CHAR_CONSTANT
+      { $$ = UNARY(character_constant, $1); }
+   ;
+
+floating_constant: DECIMAL_FLOATING_CONSTANT
+      { $$ = UNARY(floating_constant, $1); }
+   | HEXADECIMAL_FLOATING_CONSTANT
+      { $$ = UNARY(floating_constant, $1); }
+   ;
+
+typedef_name: TYPE_IDENT
+      { $$ = UNARY(typedef_name, $1); }
+   ;
+
+identifier: IDENT
+      { $$ = UNARY(identifier, $1); }
+   ;
+
+// used for struct, union, or enum, followed by an identifier
+name: IDENT
+      { $$ = UNARY(identifier, $1); }
+   | TYPE_IDENT
+      { $$ = UNARY(identifier, $1); }
+   ;
+
+string_literal: STRING_LITERAL
+      { $$ = UNARY(string_literal, $1); }
+   // see ISO C 6.4.5, point 7
+   | string_literal STRING_LITERAL
+      { $$ = BINARY(string_literal, $1, $2); }
+   ;
+
+// gcc extension: http://gcc.gnu.org/onlinedocs/gcc/Attribute-Syntax.html
+attribute_specifier_list: attribute_specifier
+      { $$ = UNARY(attribute_specifier_list, $1); }
+   | attribute_specifier_list attribute_specifier
+      { $$ = BINARY(attribute_specifier_list, $1, $2); }
+   ;
+
+attribute_specifier: ATTRIBUTE LPAREN LPAREN attribute_list RPAREN RPAREN
+      { $$ = UNARY(attribute_specifier, $4); }
+   ;
+
+attribute_list: attribute
+   | attribute_list COMMA attribute
+      { $$ = BINARY(attribute_list, $1, $3); }
+   ;
+
+attribute: /* empty */
+      { $$ = NODE(attribute); }
+   | attribute_name
+      { $$ = UNARY(attribute, $1); }
+   | attribute_name LPAREN attribute_parameters RPAREN
+      { $$ = BINARY(attribute, $1, $3); }
+   ;
+
+attribute_name: IDENT
+      { $$ = UNARY(attribute_name, $1); }
+   | CONST
+      { $$ = UNARY(attribute_name, $1); }
+   ;
+
+attribute_parameters: attribute_parameter
+   | attribute_parameters COMMA attribute_parameter
+      { $$ = BINARY(attribute_parameters, $1, $3); }
+   ;
+
+attribute_parameter: assignment_expression
+      { $$ = UNARY(attribute_parameter, $1); }
+   ;
+
+%%
+
+using namespace AstlC;
+
+/*
+ * is_typedef may be invoked for a subtree representing declaration_specifiers;
+ * true is returned if a typedef is among the specifiers
+ */
+bool is_typedef(NodePtr node) {
+   assert(!node->is_leaf());
+   if (node->get_op() == Op::storage_class_specifier) {
+      node = node->get_operand(0);
+   }
+   if (node->get_op() == Op::TYPEDEF) {
+      return true;
+   }
+   if (node->get_op() != Op::declaration_specifiers) {
+      return false;
+   }
+   if (node->size() == 1) {
+      return is_typedef(node->get_operand(0));
+   } else {
+      assert(node->size() == 2);
+      return is_typedef(node->get_operand(0)) ||
+	     is_typedef(node->get_operand(1));
+   }
+}
+
+void insert_ident_in_declarator(SymTable& symtab,
+   NodePtr node, SymbolClass cls);
+
+/*
+ * node shall represent an direct_declarator;
+ * insert_ident_in_direct_declarator enters the identifier found in the
+ * declarator as type identifier into the symbol table symtab
+ */
+void insert_ident_in_direct_declarator(SymTable& symtab,
+      NodePtr node, SymbolClass cls) {
+   if (node->get_op() == Op::direct_declarator_with_attributes) {
+      node = node->get_operand(0);
+   }
+   assert(node->get_op() == Op::direct_declarator);
+   node = node->get_operand(0);
+   if (node->get_op() == Op::identifier) {
+      Symbol sym(cls, node->get_operand(0)->get_token().get_text());
+      symtab.insert(sym);
+   } else if (node->get_op() == Op::direct_declarator) {
+      insert_ident_in_direct_declarator(symtab, node, cls);
+   } else if (node->get_op() == Op::LPAREN) {
+      insert_ident_in_declarator(symtab, node->get_operand(0), cls);
+   } else {
+      insert_ident_in_declarator(symtab, node, cls);
+   }
+}
+
+/*
+ * node shall represent an declarator;
+ * insert_ident_in_declarator enters the identifier found in the
+ * declarator as type identifier into the symbol table symtab
+ */
+void insert_ident_in_declarator(SymTable& symtab,
+      NodePtr node, SymbolClass cls) {
+   if (node->get_op() == Op::declarator_with_attributes) {
+      node = node->get_operand(0);
+   }
+   if (node->get_op() == Op::asm_labeled_declarator) {
+      node = node->get_operand(0);
+   }
+   assert(node->get_op() == Op::declarator);
+   if (node->size() == 1) {
+      insert_ident_in_direct_declarator(symtab, node->get_operand(0), cls);
+   } else {
+      assert(node->size() == 2);
+      insert_ident_in_direct_declarator(symtab, node->get_operand(1), cls);
+   }
+}
+
+/*
+ * node shall represent an init_declarator;
+ * insert_ident enters the identifier found in the
+ * declarator as type identifier into the symbol table symtab
+ */
+void insert_ident(SymTable& symtab, NodePtr node, SymbolClass cls) {
+   if (node->get_op() == Op::init_declarator) {
+      node = node->get_operand(0);
+   }
+   insert_ident_in_declarator(symtab, node, cls);
+}
+
+/*
+ * node shall represent an init_declarator_list;
+ * insert_idents enters all identifiers found in the
+ * declarator list as type identifiers into the symbol table symtab
+ */
+void insert_idents(SymTable& symtab, NodePtr node, SymbolClass cls) {
+   assert(node->get_op() == Op::init_declarator_list);
+   if (node->size() == 1) {
+      insert_ident(symtab, node->get_operand(0), cls);
+   } else {
+      assert(node->size() == 2);
+      insert_idents(symtab, node->get_operand(0), cls);
+      insert_ident(symtab, node->get_operand(1), cls);
+   }
+}
