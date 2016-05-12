@@ -59,7 +59,8 @@ $(GeneratedCPPSourcesFromBison): %.tab.cpp: %.ypp
 parser.tab.o:	operators.hpp
 
 depend:		$(CPPSources)
-		gcc-makedepend $(CPPFLAGS) $(CPPSources) $(MainCPPSources)
+		perl ../astl/gcc-makedepend/gcc-makedepend.pl \
+		   $(CPPFLAGS) $(CPPSources) $(MainCPPSources)
 # DO NOT DELETE
 parser.tab.o: parser.tab.cpp ../astl/astl/syntax-tree.hpp \
  ../astl/astl/config.hpp ../astl/astl/types.hpp \
