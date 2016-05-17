@@ -58,7 +58,7 @@ bool is_whitespace(char ch) {
 Scanner::Scanner(std::istream& in, const std::string& input_name,
       SymTable& symtab) :
       in(in), input_name(input_name), ch(0), eof(false),
-      tokenstr(0), symtab(symtab) {
+      tokenstr(nullptr), symtab(symtab) {
    pos.initialize(&this->input_name);
    nextch();
 }
@@ -67,7 +67,7 @@ Scanner::Scanner(std::istream& in, const std::string& input_name,
 
 int Scanner::get_token(semantic_type& yylval, location& yylloc) {
    int token = 0;
-   yylval = NodePtr((Node*)0);
+   yylval = NodePtr(nullptr);
 
 restart:
    for(;;) {
@@ -99,7 +99,7 @@ restart:
 	    token = keyword_token;
 	    /* a semantic value is no longer required for keywords */
 	    delete tokenstr;
-	    tokenstr = 0;
+	    tokenstr = nullptr;
 	 } else {
 	    Symbol symbol;
 	    if (symtab.lookup(*tokenstr, symbol)) {
@@ -610,6 +610,8 @@ void Scanner::parse_character_constant() {
 		  error("invalid character constant");
 	    }
 	 }
+      } else if (eof) {
+	 error("end of file in character constant");
       } else {
 	 nextch();
       }
@@ -650,6 +652,8 @@ void Scanner::parse_string_constant() {
 		  error("invalid string constant");
 	    }
 	 }
+      } else if (eof) {
+	 error("end of file in string constant");
       } else {
 	 nextch();
       }
@@ -663,7 +667,7 @@ void Scanner::parse_directive() {
    }
    if (is_letter(ch)) {
       // regular directives including #pragma are ignored
-      while (ch != '\n') {
+      while (!eof && ch != '\n') {
 	 nextch();
       }
    } else if (is_digit(ch)) {
@@ -685,16 +689,16 @@ void Scanner::parse_directive() {
       }
       nextch();
       tokenstr = new std::string();
-      while (ch != '"' && ch != '\n') {
+      while (!eof && ch != '"' && ch != '\n') {
 	 nextch();
       }
-      if (ch == '\n') {
+      if (eof || ch == '\n') {
 	 error("broken linemarker in cpp output");
       }
-      std::string* filename = tokenstr; tokenstr = 0;
+      std::string* filename = tokenstr; tokenstr = nullptr;
       // skip flags (1 = push, 2 = pop, 3 = system header,
       // 4 = requires extern "C") as they do not concern us
-      while (ch != '\n') {
+      while (!eof && ch != '\n') {
 	 nextch();
       }
       // fix current position
