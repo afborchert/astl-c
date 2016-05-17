@@ -17,10 +17,9 @@
 */
 
 
-#include <boost/version.hpp>
-#include <sys/types.h>
+#include <cstdlib>
 #include <unistd.h>
-#include <stdlib.h>
+#include <boost/version.hpp>
 #include <astl/exception.hpp>
 #include "pp.hpp"
 

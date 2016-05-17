@@ -22,16 +22,16 @@ namespace AstlC {
    class SymTable;
 }
 
+#include <cassert>
+#include <memory>
+#include <string>
 #include <astl/syntax-tree.hpp>
+#include "operators.hpp"
+#include "scanner.hpp"
+#include "symbol.hpp"
 #include "symtable.hpp"
 #include "yystype.hpp"
-#include "scanner.hpp"
-#include "operators.hpp"
-#include "operators.hpp"
 #include "yytname.hpp"
-#include "symbol.hpp"
-#include <string>
-#include <cassert>
 
 using namespace Astl;
 
@@ -39,20 +39,20 @@ using namespace Astl;
 #define YYLLOC (yyla.location)
 
 #define NODE(op) \
-   (NodePtr(new Node(make_loc(YYLLOC), Op::op)))
+   (std::make_shared<Node>(make_loc(YYLLOC), Op::op))
 #define UNARY(unop, op1) \
-   (NodePtr(new Node(make_loc(YYLLOC), Op::unop, (op1))))
+   (std::make_shared<Node>(make_loc(YYLLOC), Op::unop, (op1)))
 #define BINARY(binop, op1,op2) \
-   (NodePtr(new Node(make_loc(YYLLOC), Op::binop, (op1), (op2))))
+   (std::make_shared<Node>(make_loc(YYLLOC), Op::binop, (op1), (op2)))
 #define TERTIARY(top, op1,op2,op3) \
-   (NodePtr(new Node(make_loc(YYLLOC), Op::top, (op1), (op2), (op3))))
+   (std::make_shared<Node>(make_loc(YYLLOC), Op::top, (op1), (op2), (op3)))
 #define QUATERNARY(top, op1,op2,op3,op4) \
-   (NodePtr(new Node(make_loc(YYLLOC), Op::top, (op1), (op2), (op3), (op4))))
+   (std::make_shared<Node>(make_loc(YYLLOC), Op::top, (op1), (op2), (op3), (op4)))
 #define QUINARY(top, op1,op2,op3,op4,op5) \
-   (NodePtr(new Node(make_loc(YYLLOC), Op::top, (op1), (op2), (op3), (op4), (op5))))
+   (std::make_shared<Node>(make_loc(YYLLOC), Op::top, (op1), (op2), (op3), (op4), (op5)))
 
 #define LEAF(tk) \
-   (NodePtr(new Node(make_loc(YYLLOC), Token(token::tk, yytname[token::tk - 255]))))
+   (std::make_shared<Node>(make_loc(YYLLOC), Token(token::tk, yytname[token::tk - 255])))
 
 #define INSERT(class, token) \
    (symtab.insert(Symbol(class, \

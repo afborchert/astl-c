@@ -16,19 +16,19 @@
    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
-#include <iostream>
-#include <fstream>
 #include <cstdlib>
-#include "scanner.hpp"
-#include "parser.hpp"
-#include "yytname.hpp"
-#include "symtable.hpp"
-#include "location.hpp"
+#include <fstream>
+#include <iostream>
 #include <astl/token.hpp>
+#include "location.hpp"
+#include "parser.hpp"
+#include "scanner.hpp"
+#include "symtable.hpp"
+#include "yytname.hpp"
 
 using namespace std;
-using namespace AstlC;
 using namespace Astl;
+using namespace AstlC;
 
 int main(int argc, char** argv) {
    char* cmdname = *argv++; --argc;

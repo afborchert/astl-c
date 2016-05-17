@@ -16,12 +16,13 @@
    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
-#include "scanner.hpp"
+#include <memory>
+#include <astl/syntax-tree.hpp>
+#include <astl/token.hpp>
 #include "error.hpp"
 #include "keywords.hpp"
 #include "location.hpp"
-#include <astl/syntax-tree.hpp>
-#include <astl/token.hpp>
+#include "scanner.hpp"
 
 using namespace Astl;
 
@@ -116,8 +117,8 @@ restart:
 	 }
       }
       if (tokenstr) {
-	 yylval = NodePtr(new Node(make_loc(tokenloc),
-	    Token(token, tokenstr)));
+	 yylval = std::make_shared<Node>(make_loc(tokenloc),
+	    Token(token, tokenstr));
       }
    } else if (is_digit(ch)) {
       tokenstr = new std::string();
@@ -231,7 +232,8 @@ restart:
 	       break;
 	 }
       }
-      yylval = NodePtr(new Node(make_loc(tokenloc), Token(token, tokenstr)));
+      yylval = std::make_shared<Node>(make_loc(tokenloc),
+	 Token(token, tokenstr));
    } else {
       switch (ch) {
 	 case 0:
@@ -270,15 +272,15 @@ restart:
 	    tokenstr = new std::string();
 	    parse_character_constant();
 	    token = parser::token::CHAR_CONSTANT;
-	    yylval = NodePtr(new Node(make_loc(tokenloc),
-	       Token(token, tokenstr)));
+	    yylval = std::make_shared<Node>(make_loc(tokenloc),
+	       Token(token, tokenstr));
 	    break;
 	 case '"':
 	    tokenstr = new std::string();
 	    parse_string_constant();
 	    token = parser::token::STRING_LITERAL;
-	    yylval = NodePtr(new Node(make_loc(tokenloc),
-	       Token(token, tokenstr)));
+	    yylval = std::make_shared<Node>(make_loc(tokenloc),
+	       Token(token, tokenstr));
 	    break;
 	 case '.':
 	    nextch();
@@ -288,8 +290,8 @@ restart:
 	       /* decimal floating constant */
 	       parse_decimal_floating_constant();
 	       token = parser::token::DECIMAL_FLOATING_CONSTANT;
-	       yylval = NodePtr(new Node(make_loc(tokenloc),
-		  Token(token, tokenstr)));
+	       yylval = std::make_shared<Node>(make_loc(tokenloc),
+		  Token(token, tokenstr));
 	    } else if (ch == '.') {
 	       nextch();
 	       if (ch != '.') {

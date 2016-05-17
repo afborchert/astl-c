@@ -17,12 +17,12 @@
 */
 
 #include <cassert>
-#include <iostream>
-#include <iomanip>
-#include <fstream>
 #include <cstdlib>
 #include <cstring>
-#include <unistd.h>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <memory>
 #include <astl/run.hpp>
 #include <astl/generator.hpp>
 #include <astl/loader.hpp>
@@ -59,20 +59,20 @@ class SyntaxTreeGeneratorForC: public SyntaxTreeGenerator {
 	 bool multiple_sources = false;
 	 unsigned int source_count = 0;
 	 NodePtr super_root; // collecting multiple sources
-	 if (strcmp(*argv, "--sources--") == 0) {
+	 if (std::strcmp(*argv, "--sources--") == 0) {
 	    multiple_sources = true;
 	    --argc; ++argv;
-	    super_root = NodePtr(new Node(Location(),
-	       Operator("translation_units")));
+	    super_root = std::make_shared<Node>(Location(),
+	       Operator("translation_units"));
 	 }
 
 	 /* process options and source files */
 	 do {
 	    /* collect options for the preprocessor */
-	    if (strcmp(*argv, "--cpp--") == 0) {
+	    if (std::strcmp(*argv, "--cpp--") == 0) {
 	       /* take all arguments enclosed in --cpp-- ... --cpp-- */
 	       --argc; ++argv;
-	       while (argc > 0 && strcmp(*argv, "--cpp--") != 0) {
+	       while (argc > 0 && std::strcmp(*argv, "--cpp--") != 0) {
 		  args.push_back(*argv++); --argc;
 	       }
 	       if (argc > 0) {
@@ -81,7 +81,8 @@ class SyntaxTreeGeneratorForC: public SyntaxTreeGenerator {
 	    } else {
 	       /* take all arguments with a leading - */
 	       while (argc > 0 && *argv[0] == '-' &&
-		     (!multiple_sources || strcmp(*argv, "--sources--") != 0)) {
+		     (!multiple_sources ||
+			std::strcmp(*argv, "--sources--") != 0)) {
 		  args.push_back(*argv++); --argc;
 	       }
 	    }
@@ -95,7 +96,7 @@ class SyntaxTreeGeneratorForC: public SyntaxTreeGenerator {
 	    }
 	    /* leave loop,
 	       if sources were given and the source list is closed */
-	    if (multiple_sources && strcmp(*argv, "--sources--") == 0) {
+	    if (multiple_sources && std::strcmp(*argv, "--sources--") == 0) {
 	       if (source_count == 0) {
 		  throw Exception("no source files given");
 	       }
@@ -142,7 +143,7 @@ int main(int argc, char** argv) {
    try {
       SyntaxTreeGeneratorForC astgen;
       Loader loader;
-      char* path = getenv("ASTL_C_PATH");
+      char* path = std::getenv("ASTL_C_PATH");
       if (path) {
 	 char* dir = path;
 	 for (char* cp = path; *cp; ++cp) {
