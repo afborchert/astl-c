@@ -1,0 +1,17 @@
+#!../../astl-c/astl-c
+library "../../lib";
+import printer;
+import mutations;
+import ops;
+
+transformation rules mutations {
+   minus_to_plus: ("-" leftop rightop) -> ("+" rightop leftop);
+   ne_to_eq: ("!=" leftop rightop) -> ("==" rightop leftop);
+   ass_to_incr: ("=" lvalue rvalue) -> ("+=" lvalue rvalue);
+}
+
+sub main {
+   gen_mutations(root, mutations, "__variant__");
+   println("extern unsigned int __variant__;");
+   println(gentext(root));
+}
