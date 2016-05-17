@@ -30,8 +30,8 @@ namespace AstlC {
 // private functions =========================================================
 
 bool is_letter(char ch) {
-   return (ch >= 'a') && (ch <= 'z') ||
-      (ch >= 'A') && (ch <= 'Z') || ch == '_';
+   return ((ch >= 'a') && (ch <= 'z')) ||
+      ((ch >= 'A') && (ch <= 'Z')) || ch == '_';
 }
 
 bool is_digit(char ch) {
@@ -43,8 +43,8 @@ bool is_octaldigit(char ch) {
 }
 
 bool is_hexdigit(char ch) {
-   return (ch >= '0') && (ch <= '9') ||
-      ch >= 'a' && ch <= 'f' || ch >= 'A' && ch <= 'F';
+   return ((ch >= '0') && (ch <= '9')) ||
+      (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F');
 }
 
 bool is_whitespace(char ch) {
@@ -54,11 +54,11 @@ bool is_whitespace(char ch) {
 
 // constructor ===============================================================
 
-Scanner::Scanner(std::istream& in_param, const std::string& input_name_param,
-      SymTable& symtab_param) :
-      in(in_param), input_name(input_name_param), symtab(symtab_param),
-      eof(false), ch(0), tokenstr(0) {
-   pos.initialize(&input_name);
+Scanner::Scanner(std::istream& in, const std::string& input_name,
+      SymTable& symtab) :
+      in(in), input_name(input_name), ch(0), eof(false),
+      tokenstr(0), symtab(symtab) {
+   pos.initialize(&this->input_name);
    nextch();
 }
 

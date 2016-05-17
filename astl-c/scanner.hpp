@@ -30,8 +30,8 @@ namespace AstlC {
 
    class Scanner {
       public:
-	 Scanner(std::istream& in_param, const std::string& input_name_param,
-	    SymTable& symtab_param);
+	 Scanner(std::istream& in, const std::string& input_name,
+	    SymTable& symtab);
 
 	 // mutators
 	 int get_token(semantic_type& yylval, location& yylloc);
