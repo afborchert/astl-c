@@ -1,12 +1,12 @@
 /*
-   Copyright (C) 2009 Andreas Franz Borchert
+   Copyright (C) 2009-2016 Andreas Franz Borchert
    ----------------------------------------------------------------------------
-   The AST Library is free software; you can redistribute it
+   Astl-C is free software; you can redistribute it
    and/or modify it under the terms of the GNU Library General Public
    License as published by the Free Software Foundation; either version
    2 of the License, or (at your option) any later version.
 
-   Ulm's Oberon Library is distributed in the hope that it will be
+   The Astl Library for C is distributed in the hope that it will be
    useful, but WITHOUT ANY WARRANTY; without even the implied warranty
    of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
    Library General Public License for more details.
@@ -66,7 +66,7 @@ Scanner::Scanner(std::istream& in_param, const std::string& input_name_param,
 
 int Scanner::get_token(semantic_type& yylval, location& yylloc) {
    int token = 0;
-   yylval = SubnodePtr((Node*)0);
+   yylval = NodePtr((Node*)0);
 
 restart:
    for(;;) {
@@ -116,7 +116,7 @@ restart:
 	 }
       }
       if (tokenstr) {
-	 yylval = SubnodePtr(new Node(make_loc(tokenloc),
+	 yylval = NodePtr(new Node(make_loc(tokenloc),
 	    Token(token, tokenstr)));
       }
    } else if (is_digit(ch)) {
@@ -231,7 +231,7 @@ restart:
 	       break;
 	 }
       }
-      yylval = SubnodePtr(new Node(make_loc(tokenloc), Token(token, tokenstr)));
+      yylval = NodePtr(new Node(make_loc(tokenloc), Token(token, tokenstr)));
    } else {
       switch (ch) {
 	 case 0:
@@ -270,14 +270,14 @@ restart:
 	    tokenstr = new std::string();
 	    parse_character_constant();
 	    token = parser::token::CHAR_CONSTANT;
-	    yylval = SubnodePtr(new Node(make_loc(tokenloc),
+	    yylval = NodePtr(new Node(make_loc(tokenloc),
 	       Token(token, tokenstr)));
 	    break;
 	 case '"':
 	    tokenstr = new std::string();
 	    parse_string_constant();
 	    token = parser::token::STRING_LITERAL;
-	    yylval = SubnodePtr(new Node(make_loc(tokenloc),
+	    yylval = NodePtr(new Node(make_loc(tokenloc),
 	       Token(token, tokenstr)));
 	    break;
 	 case '.':
@@ -288,7 +288,7 @@ restart:
 	       /* decimal floating constant */
 	       parse_decimal_floating_constant();
 	       token = parser::token::DECIMAL_FLOATING_CONSTANT;
-	       yylval = SubnodePtr(new Node(make_loc(tokenloc),
+	       yylval = NodePtr(new Node(make_loc(tokenloc),
 		  Token(token, tokenstr)));
 	    } else if (ch == '.') {
 	       nextch();

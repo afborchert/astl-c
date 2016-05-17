@@ -1,0 +1,17 @@
+# swap files of vim
+*.swp
+# objects and other generated files
+*.o
+parser.output
+parser.tab.cpp
+parser.tab.hpp
+operators.cpp
+operators.hpp
+yytname.cpp
+*.hh
+# binaries
+astl-c
+run
+testlex
+testparser
+libastl.a

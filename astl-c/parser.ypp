@@ -1,7 +1,7 @@
 /*
-   Copyright (C) 2009-2011 Andreas Franz Borchert and Yan Wang
+   Copyright (C) 2009-2016 Andreas Franz Borchert and Yan Wang
    ----------------------------------------------------------------------------
-   The Astl Library for C is free software; you can redistribute it
+   Astl-C is free software; you can redistribute it
    and/or modify it under the terms of the GNU Library General Public
    License as published by the Free Software Foundation; either version
    2 of the License, or (at your option) any later version.
@@ -39,20 +39,20 @@ using namespace Astl;
 #define YYLLOC (yyla.location)
 
 #define NODE(op) \
-   (SubnodePtr(new Node(make_loc(YYLLOC), Op::op)))
+   (NodePtr(new Node(make_loc(YYLLOC), Op::op)))
 #define UNARY(unop, op1) \
-   (SubnodePtr(new Node(make_loc(YYLLOC), Op::unop, (op1))))
+   (NodePtr(new Node(make_loc(YYLLOC), Op::unop, (op1))))
 #define BINARY(binop, op1,op2) \
-   (SubnodePtr(new Node(make_loc(YYLLOC), Op::binop, (op1), (op2))))
+   (NodePtr(new Node(make_loc(YYLLOC), Op::binop, (op1), (op2))))
 #define TERTIARY(top, op1,op2,op3) \
-   (SubnodePtr(new Node(make_loc(YYLLOC), Op::top, (op1), (op2), (op3))))
+   (NodePtr(new Node(make_loc(YYLLOC), Op::top, (op1), (op2), (op3))))
 #define QUATERNARY(top, op1,op2,op3,op4) \
-   (SubnodePtr(new Node(make_loc(YYLLOC), Op::top, (op1), (op2), (op3), (op4))))
+   (NodePtr(new Node(make_loc(YYLLOC), Op::top, (op1), (op2), (op3), (op4))))
 #define QUINARY(top, op1,op2,op3,op4,op5) \
-   (SubnodePtr(new Node(make_loc(YYLLOC), Op::top, (op1), (op2), (op3), (op4), (op5))))
+   (NodePtr(new Node(make_loc(YYLLOC), Op::top, (op1), (op2), (op3), (op4), (op5))))
 
 #define LEAF(tk) \
-   (SubnodePtr(new Node(make_loc(YYLLOC), Token(token::tk, yytname[token::tk - 255]))))
+   (NodePtr(new Node(make_loc(YYLLOC), Token(token::tk, yytname[token::tk - 255]))))
 
 #define INSERT(class, token) \
    (symtab.insert(Symbol(class, \
@@ -76,14 +76,15 @@ NodePtr flatten(NodePtr node, NodePtr subnodes, const Operator& op);
 %}
 
 %skeleton "lalr1.cc"
-%define namespace "AstlC"
+%define api.prefix {astlc}
+%define api.namespace { AstlC }
 %defines
 %verbose
 %locations
 %token-table
 %parse-param { Scanner& scanner }
 %parse-param { SymTable& symtab }
-%parse-param { Astl::SubnodePtr& root }
+%parse-param { Astl::NodePtr& root }
 %lex-param { Scanner& scanner }
 
 /* tokens of C99 in conformance to ISO 9899-1999 */

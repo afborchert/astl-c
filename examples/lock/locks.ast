@@ -1,0 +1,27 @@
+#!../../astl-c/astl-c
+library "../../lib";
+import symtab;
+import cfg;
+import sm;
+import printer;
+import ops;
+
+state machine lock_checker: global_tracker (unlocked, locked, broken) {
+   ("function_call" ("identifier" "lock")) at call
+      when unlocked -> locked
+      when locked -> broken { err("lock possibly called twice"); }
+   ("function_call" ("identifier" "unlock")) at call
+      when locked -> unlocked
+      when unlocked -> broken { err("unlock possibly called unbalanced"); }
+
+   on close when locked -> {
+      if (!endless_recursion) {
+	 err("missing invocation of unlock at end of path");
+      }
+   }
+   on close -> {
+      if (endless_recursion) {
+	 err("endless recursion detected");
+      }
+   }
+}

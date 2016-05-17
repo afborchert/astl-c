@@ -1,3 +1,21 @@
+/*
+   Copyright (C) 2009-2016 Andreas Franz Borchert
+   ----------------------------------------------------------------------------
+   Astl-C is free software; you can redistribute it
+   and/or modify it under the terms of the GNU Library General Public
+   License as published by the Free Software Foundation; either version
+   2 of the License, or (at your option) any later version.
+
+   The Astl Library for C is distributed in the hope that it will be
+   useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+   of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+   Library General Public License for more details.
+
+   You should have received a copy of the GNU Library General Public
+   License along with this library; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+*/
+
 #include <cassert>
 #include <iostream>
 #include <iomanip>
@@ -14,8 +32,8 @@
 #include "pp.hpp"
 
 using namespace std;
-using namespace AstlC;
 using namespace Astl;
+using namespace AstlC;
 
 static char* cmdname;
 
@@ -68,7 +86,7 @@ int main(int argc, char** argv) {
 	 exit(1);
       }
       Scanner scanner(source, source_name, symtab);
-      SubnodePtr root;
+      NodePtr root;
       parser p(scanner, symtab, root);
       if (p.parse() != 0) exit(1);
 
