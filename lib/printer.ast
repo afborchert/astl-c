@@ -82,7 +82,7 @@ print rules {
 
    ("prefix++" expr) -> q{++$expr};
    ("prefix--" expr) -> q{--$expr};
-   ("&" expr) -> q{&$expr};
+   ("address_of" expr) -> q{&$expr};
    ("pointer_dereference" expr) -> q{*$expr};
    ("unary+" expr) -> q{+$expr};
    ("unary-" expr) -> q{-$expr};

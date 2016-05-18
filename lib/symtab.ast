@@ -1385,7 +1385,7 @@ attribution rules {
 	 expr.t = null;
       }
    };
-   ("&" op) as expr -> post {
+   ("address_of" op) as expr -> post {
       if (exists op.t && op.t) {
 	 expr.t = {
 	    kind -> "pointer",

@@ -370,8 +370,7 @@ function_call: postfix_expression LPAREN RPAREN
    ;
 
 unary_expression: postfix_expression
-   | AMPERSAND cast_expression
-      { $$ = UNARY(AMPERSAND, $2); }
+   | address_of
    | pointer_dereference
    | unary_plus
    | unary_minus
@@ -392,6 +391,10 @@ unary_expression: postfix_expression
 /* gcc extension: http://gcc.gnu.org/onlinedocs/gcc/Labels-as-Values.html */
 label_as_value: AND identifier
       { $$ = UNARY(label_as_value, $2); }
+   ;
+
+address_of: AMPERSAND cast_expression
+      { $$ = UNARY(address_of, $2); }
    ;
 
 prefix_plusplus: PLUSPLUS unary_expression

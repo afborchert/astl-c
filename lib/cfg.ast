@@ -431,7 +431,7 @@ attribution rules {
    ("postfix++" a) as stmt -> post {
       unary_operator(stmt, a);
    };
-   ("&" a) as stmt -> post {
+   ("address_of" a) as stmt -> post {
       unary_operator(stmt, a);
    };
    ("pointer_dereference" a) as stmt -> post {

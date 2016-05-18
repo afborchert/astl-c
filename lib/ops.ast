@@ -33,7 +33,7 @@ opset using_operators = ["conditional_expression" logical_operators
 opset all_operators = ["," assignment_operators "conditional_expression"
    logical_operators binary_operators comparison_operators
    arithmetic_operators
-   "cast_expression" "pointer_dereference" "&" "unary+" "unary-"
+   "cast_expression" "pointer_dereference" "address_of" "unary+" "unary-"
    "sizeof" "prefix++" "prefix--" "{}" "postfix++" "postfix--"
    "function_call" "->" "." "[]"];
 
@@ -53,7 +53,7 @@ operators {
    left "*" "/" "%";
 
    right "cast_expression";
-   right "pointer_dereference" "&"
+   right "pointer_dereference" "address_of"
 	 "unary+" "unary-" "!" "~" "sizeof"
 	 "prefix++" "prefix--";
    left "{}";
