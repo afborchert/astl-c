@@ -20,6 +20,7 @@
 #define C_SCANNER_H
 
 #include <iostream>
+#include <memory>
 #include "parser.hpp"
 #include "symtable.hpp"
 #include "location.hpp"
@@ -44,7 +45,7 @@ namespace AstlC {
 	 int lasttoken; // last token returned by get_token()
 	 position oldpos, pos;
 	 location tokenloc;
-	 std::string* tokenstr;
+	 std::unique_ptr<std::string> tokenstr;
 	 SymTable& symtab;
 
 	 // private mutators
