@@ -276,8 +276,8 @@ primary_expression: identifier
    ;
 
 /* va_arg, usually substituted by a macro to __builtin_va_arg */
-va_arg: VA_ARG LPAREN expression COMMA type_name RPAREN
-      { $$ = BINARY(va_arg, $3, $5); }
+va_arg_macro: VA_ARG LPAREN expression COMMA type_name RPAREN
+      { $$ = BINARY(va_arg_macro, $3, $5); }
    ;
 
 /* see http://gcc.gnu.org/onlinedocs/gcc/Offsetof.html */
@@ -350,7 +350,7 @@ postfix_expression: primary_expression
       { $$ = UNARY(LBRACE, $2); }
    | builtin_offsetof
    | alignof_expr
-   | va_arg
+   | va_arg_macro
    | types_compatible_p
    | choose_expr
    | unreachable
