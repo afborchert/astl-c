@@ -1,3 +1,3 @@
 [submodule "astl"]
 	path = astl
-	url = git@github.com:afborchert/astl.git
+	url = https://github.com/afborchert/astl.git
