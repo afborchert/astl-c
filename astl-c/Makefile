@@ -1,6 +1,7 @@
 AstlPath := ../astl
 BisonSources :=	$(wildcard *.ypp)
-GeneratedCPPSourcesFromBison := $(patsubst %.ypp,%.tab.cpp,$(BisonSources))
+GeneratedCPPSourcesFromBison := $(patsubst %.ypp,%.tab.cpp,$(BisonSources)) \
+   $(patsubst %.ypp,%.tab.hpp,$(BisonSources))
 GeneratedCPPSources := $(GeneratedCPPSourcesFromBison) \
    yytname.cpp operators.cpp
 GeneratedHPPSources := $(patsubst %.ypp,%.tab.hpp,$(BisonSources)) \
