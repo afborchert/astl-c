@@ -1,0 +1,84 @@
+#!../../astl-c/astl-c
+
+/*
+   Checking for conformance to rule 6 by Gerard J. Holzmann,
+   The Power of Ten -- Rules for Developing Safety Critical Code
+   http://spinroot.com/gerard/pdf/P10.pdf
+
+   Rule: Data objects must be declared at the smallest possible
+   level of scope.
+*/
+sub common_parent {
+   var block1 = args[0];
+   var block2 = args[1];
+   while (block1 != block2) {
+      if (block1.level >= block2.level) {
+	 block1 = block1.up;
+      } else {
+	 block2 = block2.up;
+      }
+   }
+   return block1;
+}
+
+attribution rules {
+   // opening a new block
+   ("compound_statement" *) as block -> {
+      block.vars = {};
+      block.level = 0;
+      block.up = null;
+   };
+   ("compound_statement" *) as inner_block
+         in ("compound_statement" *) as outer_block -> {
+      inner_block.level = outer_block.level + 1;
+      inner_block.up = outer_block;
+   };
+   // declarating an identifier
+   ("direct_declarator" ("identifier" id)) as declarator
+         in ("compound_statement" *) as block -> {
+      block.vars{id} = {
+	 decl -> declarator,
+	 used -> false,
+	 minlevel -> -1,
+	 minblock -> null,
+      };
+   };
+   // using an identifier in an expression
+   ("identifier" id) in ("expression" *) as expr and 
+         in ("compound_statement" *) as block -> {
+      // look for the block which defines this identifier
+      var b = block;
+      while (b && !(exists b.vars{id})) {
+         b = b.up;
+      }
+      // add its usage, if the declaration was found
+      if (b) {
+	 var entry = b.vars{id};
+	 if (entry.used) {
+	    var parent = common_parent(block, entry.minblock);
+	    if (parent.level < entry.minlevel) {
+	       entry.minlevel = parent.level;
+	       entry.minblock = parent;
+	    }
+	 } else {
+	    entry.minlevel = block.level;
+	    entry.minblock = block;
+	    entry.used = true;
+	 }
+      }
+   };
+   // check usage of all variables of this block
+   ("compound_statement" *) as block -> post {
+      foreach varname in (block.vars) {
+	 var entry = block.vars{varname};
+	 if (entry.used) {
+	    if (entry.minblock != block) {
+	       println(location(entry.decl) & ": variable " & varname &
+		  " should be moved into block at " & location(entry.minblock));
+	    }
+	 } else {
+	    println(location(entry.decl) & ": unused variable " & varname);
+	 }
+      }
+   };
+};
