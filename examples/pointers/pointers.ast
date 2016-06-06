@@ -1,0 +1,170 @@
+#!../../astl-c/astl-c
+
+/*
+   follow pointer variables through the use of state machines
+   where we try to keep track whether a pointer value is
+   undefined, well-defined, null, non-null or freed
+*/
+
+library "../../lib";
+import ops;
+import printer;
+import symtab;
+import cfg;
+import sm;
+
+/*
+   track null pointers,
+   i.e. recognize "0" or "(void*)0" or other similar casts as null pointer
+   or as possible null pointer
+*/
+
+attribution rules {
+   ("integer_constant" m{^0+[LUlu]*$}) as const -> {
+      const.nullptr = true;
+   };
+   ("octal_constant" m{^0+[LUlu]*$}) as const -> {
+      const.nullptr = true;
+   };
+   ("hexadecimal_constant" m{^0[xX]0+[LUlu]*$}) as const -> {
+      const.nullptr = true;
+   };
+   ("cast_expression" type_name value) as expr -> post {
+      if (exists value.nullptr && exists expr.t &&
+	    (is_integer(expr.t) || is_pointer(expr.t))) {
+	 expr.nullptr = true;
+      }
+   };
+   ("," expr1 expr2) as expr -> post {
+      if (exists expr2.nullptr) {
+	 expr.nullptr = true;
+      }
+   };
+   ("=" lvalue rvalue) as expr -> post {
+      if (exists rvalue.nullptr) {
+	 expr.nullptr = true;
+      }
+   };
+   ("expression" e) as expr -> post {
+      if (exists e.nullptr) {
+	 expr.nullptr = true;
+      }
+   };
+   ("initializer" ("expression" expr)) as initializer -> post {
+      if (exists expr.nullptr) {
+	 initializer.nullptr = true;
+      }
+   };
+}
+
+/*
+   state machine that tracks pointer variables
+*/
+
+state machine localptr: local_tracker (
+      undefined,         /* initial state: value of pointer is undefined */
+      initializing,
+      invoking_malloc,
+      seeing_nullptr,
+      welldefined,
+      nonnull,
+      isnull,
+      freed
+   ) {
+   shared var varname; /* name of the variable */
+   shared var vartype; /* type of the pointer variable */
+   shared var block;   /* block where the variable was declared */
+   shared var object;  /* corresponding object in symbol table */
+
+   /* create new instance whenever a pointer variable is declared */
+   at vardecl
+	 where exists node.block && node.vartype.kind == "pointer" -> create {
+      varname = node.varname;
+      vartype = node.vartype;
+      object = node.object;
+      block = node.block;
+   }
+
+   /* kill this instance when we are leaving the block
+      where this variable was declared */
+   at close_block where node.astnode == block -> close;
+
+   /* attempt to catch moments where pointers get a value:
+       - within the initializer: varinit_begin and varinit_end
+         mark the beginning and the end of an initializer
+	 within the control flow graph
+       - during an assignment with our variable on the lhs
+
+      we try to make assumptions about the value on the rhs:
+       - when it resembles a null value, we assume it to be NULL
+       - when malloc or calloc is invoked, we assume it to be
+         welldefined with being either NULL or a valid pointer
+       - otherwise we believe it to be non-NULL
+   */
+   at varinit_begin where object == node.object -> initializing;
+   ("=" lvalue rvalue) at assignment_begin
+      where exists node.object && object == node.object -> initializing;
+   at * where exists node.astnode.nullptr when initializing -> seeing_nullptr;
+   ("function_call" ("identifier" m{^[mc]alloc$}) args...)
+      when initializing or seeing_nullptr -> invoking_malloc;
+   at varinit_end or assignment_end
+      when initializing -> nonnull
+      when seeing_nullptr -> isnull
+      when invoking_malloc -> welldefined;
+
+   /* track invocations of free/cfree where our pointer variable
+      is given */
+   ("function_call" ("identifier" m{^c?free$})
+      ("argument_expression_list" ("identifier" varname) as id)) at call
+	 where exists id.object && id.object == object
+	 when welldefined or nonnull -> freed
+	 when freed -> {
+	    err("freeing an already freed pointer");
+	 }
+	 when undefined -> {
+	    err("freeing an undefined pointer");
+	 };
+
+   /* track when our pointer is tested against NULL,
+      this allows to proceed from welldefined to nonnull or isnull
+   */
+   ("identifier" varname) as id at conditional_fork
+      where exists id.object && id.object == object
+      if t and when welldefined -> nonnull
+      if f and when welldefined -> isnull;
+   ("!" ("identifier" varname) as id) at conditional_fork
+      where exists id.object && id.object == object
+      if t and when welldefined -> isnull
+      if f and when welldefined -> nonnull;
+   ("!=" ("identifier" varname) as id value) at conditional_fork
+      where exists value.nullptr && exists id.object && id.object == object
+      if t and when welldefined -> nonnull
+      if f and when welldefined -> isnull;
+   ("==" ("identifier" varname) as id value) at conditional_fork
+      where exists value.nullptr && exists id.object && id.object == object
+      if t and when welldefined -> isnull
+      if f and when welldefined -> nonnull;
+
+   /* track when our pointer is dereferenced */
+   ("pointer_dereference" ("identifier" varname) as id)
+      where exists id.object && id.object == object
+      when undefined -> { err("dereferencing undefined pointer"); }
+      when welldefined -> {
+	 err("dereferenced pointer has not been tested against 0");
+      }
+      when freed -> {
+	 err("dereferencing an already freed pointer");
+      }
+      when isnull -> {
+	 err("dereferenced pointer is 0");
+      };
+   /* check other pointer usages */
+   ("identifier" varname) as id in ([assignment_operators] lvalue here)
+      where exists id.object && id.object == object
+      when undefined -> {
+	 err("assigning an undefined pointer");
+      }
+      when freed -> {
+	 err("assigning a freed pointer");
+      };
+}

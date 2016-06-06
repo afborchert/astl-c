@@ -1,0 +1,28 @@
+#!../../astl-c/astl-c
+library "../../lib";
+import cfg;
+import printer;
+import symtab;
+import ops;
+
+sub traverse {
+   var node = args[0];
+   if (exists node.visited) {
+      return;
+   }
+   node.visited = true;
+   println(debug_node(node));
+   foreach successor in (node) {
+      traverse(successor);
+   }
+};
+
+sub main {
+   if (exists graph.entries.main) {
+      traverse(graph.entries.main);
+   } else {
+      foreach entry in (graph.entries) {
+	 traverse(entry);
+      }
+   }
+};

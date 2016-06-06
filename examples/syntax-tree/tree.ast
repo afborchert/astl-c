@@ -1,0 +1,25 @@
+#!../../astl-c/astl-c
+
+sub descend {
+   var nestlevel = args[0];
+   var node = args[1];
+   var result = "";
+   if (isoperator(node)) {
+      result = " " x nestlevel & "(\"" & operator(node) & "\"";
+      if (len(node) > 0) {
+	 foreach operand in (node) {
+	    result = result & "\n" & descend(nestlevel + 3, operand);
+	 }
+	 result = result & "\n" & " " x nestlevel & ")";
+      } else {
+	 result = result & ")";
+      }
+   } else {
+      result = " " x nestlevel & tokenliteral(node);
+   }
+   return result;
+};
+
+sub main {
+   println(descend(0, root));
+};
