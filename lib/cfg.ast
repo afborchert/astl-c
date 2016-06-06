@@ -28,21 +28,27 @@ sub debug_node {
    var node = args[0];
    var text = "[" & node.id & "]";
    if (cfg_type(node) != "") {
-      text &= " " & cfg_type(node) & " node:";
+      text &= " " & cfg_type(node) & ":";
+   }
+   var leftcolumn = 25;
+   if (len(text) < leftcolumn) {
+      text &= " " x (leftcolumn - len(text));
    }
    if (exists node.astnode) {
-      text &= "       " & operator(node.astnode);
+      text &= "\"" & operator(node.astnode) & "\"";
+      text &= " at " & location(node.astnode);
       if (exists node.astnode.id) {
 	 text &= " (" & node.astnode.id & ")";
       }
       var ntext = gentext(node.astnode);
-      var res = ntext =~ m{([^\n]*)\n.*\n(.*)};
+      var res = ntext =~ m{(?s)^([^\n]*)\n.*?([^\n]*)$};
       if (res) {
 	 ntext = res[0] & " ... " & res[1];
       }
-      text &= ": " & ntext;
+      text &= "\n" & " " x leftcolumn & ntext & "\n";
+      text &= " " x leftcolumn;
    }
-   text &= " (";
+   text &= "(";
    var first = true;
    foreach label in (node.branch) {
       if (first) {
