@@ -27,7 +27,7 @@ CXX :=		g++
 CXXFLAGS :=	-Wall -std=c++14 -g -O2
 LDFLAGS :=
 CPPFLAGS +=	-I$(AstlPath)
-LDLIBS := -lboost_iostreams -lgmp
+LDLIBS := -lboost_iostreams -lgmp -lpcre2-8
 BISON := bison
 
 .PHONY:		all clean depend
@@ -74,6 +74,7 @@ parser.tab.o: parser.tab.cpp ../astl/astl/syntax-tree.hpp \
  ../astl/astl/token.hpp operators.hpp scanner.hpp parser.hpp location.hpp \
  position.hh location.hh symtable.hpp symbol.hpp scope.hpp yystype.hpp \
  parser.tab.hpp stack.hh yytname.hpp
+parser.tab.o: parser.tab.hpp stack.hh location.hh position.hh
 yytname.o: yytname.cpp
 operators.o: operators.cpp ../astl/astl/operator.hpp \
  ../astl/astl/token.hpp
