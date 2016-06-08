@@ -1,5 +1,5 @@
 /*
-   Copyright (C) 2010, 2011 Andreas Franz Borchert and Yan Wang
+   Copyright (C) 2010, 2011, 2016 Andreas Franz Borchert and Yan Wang
    ----------------------------------------------------------------------------
    The Astl Library for C is free software; you can redistribute it
    and/or modify it under the terms of the GNU Library General Public
@@ -24,8 +24,7 @@ import ops;
 
 // emit some debug text for a control flow graph node,
 // this is used by diagnostic messages
-sub debug_node {
-   var node = args[0];
+sub debug_node(node) {
    var text = "[" & node.id & "]";
    if (cfg_type(node) != "") {
       text &= " " & cfg_type(node) & ":";
@@ -72,8 +71,7 @@ sub debug_node {
    return text;
 }
 
-sub init_node {
-   var node = args[0];
+sub init_node(node) {
    node.id = graph.counter++;
    node.successors = {};
    push(graph.nodes, node);
@@ -84,8 +82,7 @@ sub create_node {
    return node;
 }
 
-sub create_fork {
-   var astnode = args[0];
+sub create_fork(astnode) {
    if (operator(astnode) == "condition") {
       astnode = astnode[0];
    }
@@ -99,9 +96,7 @@ sub create_fork {
 
 // simple connect function that expects control flow graph nodes,
 // in case of condition nodes, the open end is connected
-sub connect_nodes {
-   var node1 = args[0];
-   var node2 = args[1];
+sub connect_nodes(node1, node2) {
    if (exists node1.successors{node2.id}) {
       // already connected
       println("Warning: ", debug_node(node1),
@@ -127,9 +122,7 @@ sub connect_nodes {
 }
 
 // for break and continue statements
-sub connect_jumps {
-   var nodes = args[0];
-   var target = args[1];
+sub connect_jumps(nodes, target) {
    if (type(target) == "tree") {
       target = target.entry;
    }
@@ -139,12 +132,7 @@ sub connect_jumps {
 }
 
 // common part of connect_true and connect_false
-sub connect_branch {
-   var ast = args[0];
-   var tree1 = args[1];
-   var tree2 = args[2];
-   var connect = args[3];
-
+sub connect_branch(ast, tree1, tree2, connect) {
    var node2 = tree2.entry;
    check_astnode(tree2);
    assert(node2);
@@ -186,28 +174,23 @@ sub connect_branch {
    ast.otherexits &= tree2.exits;
 }
 
-sub connect_true {
-   connect_branch(args[0], args[1], args[2], sub {
-      var node1 = args[0];
-      var node2 = args[1];
+sub connect_true(ast, tree1, tree2) {
+   connect_branch(ast, tree1, tree2, sub(node1, node2) {
       if (!exists node1.branch.t) {
 	 cfg_connect(node1, node2, "t");
       }
    });
 }
 
-sub connect_false {
-   connect_branch(args[0], args[1], args[2], sub {
-      var node1 = args[0];
-      var node2 = args[1];
+sub connect_false(ast, tree1, tree2) {
+   connect_branch(ast, tree1, tree2, sub(node1, node2) {
       if (!exists node1.branch.f) {
 	 cfg_connect(node1, node2, "f");
       }
    });
 }
 
-sub check_astnode {
-   var tree = args[0];
+sub check_astnode(tree) {
    if (!exists tree.entry || !tree.entry) {
       println("Error: no entry defined for operator ", operator(tree),
 	 " with ", len(tree), " operands in ", location(tree), ":");
@@ -223,9 +206,7 @@ sub check_astnode {
 }
 
 // connect function that accepts ast nodes as arguments
-sub connect {
-   var node1 = args[0];
-   var node2 = args[1];
+sub connect(node1, node2) {
    var entry;
    if (type(node2) == "tree") {
       check_astnode(node2);
@@ -243,10 +224,8 @@ sub connect {
 }
 
 // process operators that evaluate both operands
-sub binary_operator {
-   var ast = args[0];
-   var tree1 = args[1]; check_astnode(tree1);
-   var tree2 = args[2]; check_astnode(tree2);
+sub binary_operator(ast, tree1, tree2) {
+   check_astnode(tree1); check_astnode(tree2);
    var node = create_node(ast);
    connect(tree1, tree2);
    connect(tree2, node);
@@ -254,25 +233,20 @@ sub binary_operator {
    ast.exits = [node];
 }
 
-sub wrap_node {
-   var ast = args[0];
-   var inner = args[1];
+sub wrap_node(ast, inner) {
    check_astnode(inner);
    ast.entry = inner.entry;
    ast.exits = inner.exits;
 }
 
-sub unary_operator {
-   var ast = args[0];
-   var operand = args[1];
+sub unary_operator(ast, operand) {
    var node = create_node(ast);
    connect(operand, node);
    ast.entry = operand.entry;
    ast.exits = [node];
 }
 
-sub terminal {
-   var ast = args[0];
+sub terminal(ast) {
    var node = create_node(ast);
    ast.entry = node;
    ast.exits = [node];

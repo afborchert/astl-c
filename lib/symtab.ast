@@ -1,5 +1,5 @@
 /*
-   Copyright (C) 2011 Andreas Franz Borchert
+   Copyright (C) 2011, 2016 Andreas Franz Borchert
    ----------------------------------------------------------------------------
    The Astl Library for C is free software; you can redistribute it
    and/or modify it under the terms of the GNU Library General Public
@@ -73,10 +73,7 @@ attribution rules {
 /*
    lookup named references to structs, unions, or enums
 */
-sub lookup_typeref {
-   var block = args[0];
-   var kind = args[1];
-   var name = args[2];
+sub lookup_typeref(block, kind, name) {
    while (block) {
       if (exists block.types{kind}{name}) {
 	 return block.types{kind}{name};
@@ -86,16 +83,12 @@ sub lookup_typeref {
    return null;
 }
 
-sub insert_typeref {
-   var block = args[0];
-   var t = args[1];
+sub insert_typeref(block, t) {
    assert(exists t.name);
    block.types{t.kind}{t.name} = t;
 }
 
-sub lookup {
-   var block = args[0];
-   var name = args[1];
+sub lookup(block, name) {
    while (block) {
       if (exists block.decls{name}) {
 	 return block.decls{name};
@@ -105,8 +98,8 @@ sub lookup {
    return null;
 }
 
-sub lookup_type {
-   var obj = lookup(args[0], args[1]);
+sub lookup_type(block, name) {
+   var obj = lookup(block, name);
    if (obj && obj.class == "type") {
       return obj.t;
    } else {
@@ -114,9 +107,7 @@ sub lookup_type {
    }
 }
 
-sub insert_object {
-   var block = args[0];
-   var obj = args[1];
+sub insert_object(block, obj) {
    block.decls{obj.name} = obj;
 }
 
@@ -143,8 +134,7 @@ sub get_void_type {
    debug_type returns a string which dumps the type structure of
    its argument; this is useful for debugging purposes only
 */
-sub debug_type {
-   var t = args[0];
+sub debug_type(t) {
    if (!t) {
       return "{null}";
    }
@@ -263,8 +253,7 @@ sub debug_type {
 }
 
 /* auxiliary function of type_to_string() */
-sub attributes_to_string {
-   var t = args[0];
+sub attributes_to_string(t) {
    assert(t.kind = "attributed");
    var s = "__attribute__ ((";
    var first = true;
@@ -473,9 +462,7 @@ sub type_to_string {
 /*
    fix_type implants basetype within the type refered to by declarator.t
 */
-sub fix_type {
-   var basetype = args[0];
-   var declarator = args[1];
+sub fix_type(basetype, declarator) {
    var t = declarator.t;
    if (t && t != basetype) {
       while (exists t.rtype && t.rtype) {
@@ -488,9 +475,7 @@ sub fix_type {
    }
 }
 
-sub fix_struct {
-   var struct = args[0];
-   var sdl = args[1];
+sub fix_struct(struct, sdl) {
    var members = {};
    foreach element in (sdl.list) {
       foreach member in (element) {
@@ -511,18 +496,15 @@ sub fix_struct {
    struct.members = members;
 }
 
-sub is_integer {
-   var t = args[0];
+sub is_integer(t) {
    return t && (t.kind == "integer" || t.kind == "enum");
 }
 
-sub is_pointer {
-   var t = args[0];
+sub is_pointer(t) {
    return t && t.kind == "pointer";
 }
 
-sub get_rank {
-   var t = args[0];
+sub get_rank(t) {
    if (!defined(t) || !exists t.kind) {
       return 0;
    }
@@ -561,8 +543,7 @@ sub get_rank {
    return rank;
 }
 
-sub usual_unary_conversion {
-   var t = args[0];
+sub common_unary_conversion(t) {
    if (!defined(t) || !exists t.kind) {
       return null;
    }
@@ -598,11 +579,11 @@ sub usual_unary_conversion {
 }
 
 /*
-   usual type conversions for binary operators
+   common type conversions for binary operators
 */
-sub usual_binary_conversion {
-   var t1 = usual_unary_conversion(args[0]);
-   var t2 = usual_unary_conversion(args[1]);
+sub common_binary_conversion(t1_, t2_) {
+   var t1 = common_unary_conversion(t1_);
+   var t2 = common_unary_conversion(t2_);
    if (t1 == null || t2 == null) {
       return null;
    }
@@ -654,10 +635,7 @@ sub usual_binary_conversion {
    i.e. we do not raise errors in case of invalid operations
    but return null as resulting type
 */
-sub compute_type_of_binary_op {
-   var leftop = args[0];
-   var rightop = args[1];
-   var op = args[2];
+sub compute_type_of_binary_op(leftop, rightop, op) {
    if (exists leftop.t && exists rightop.t && leftop.t && rightop.t) {
       if ((op == "+" || op == "-") &&
 	    (leftop.t.kind == "pointer" || rightop.t.kind == "pointer")) {
@@ -692,7 +670,7 @@ sub compute_type_of_binary_op {
 	    }
 	 }
       } else {
-	 return usual_binary_conversion(leftop.t, rightop.t);
+	 return common_binary_conversion(leftop.t, rightop.t);
       }
    } else {
       return null;
@@ -912,7 +890,8 @@ attribution rules {
 	 }
       } else {
 	 if (!exists specifier.t) {
-	    println("type specifier w/o type: ", gentext(specifier), " at ", location(specifier), " where op = ", operator(specifier));
+	    println("type specifier w/o type: ", gentext(specifier), " at ",
+	       location(specifier), " where op = ", operator(specifier));
 	    specifier.t = get_int_type(); // dummy FIXME
 	 }
 	 specifier.t.qualifiers = decl.t.qualifiers;
@@ -999,7 +978,8 @@ attribution rules {
    };
    (declarators pointer direct_declarator) as decl -> post {
       if (!exists direct_declarator.name) {
-	 println("bad/unsupported declarator: ", gentext(direct_declarator), " at ", location(direct_declarator));
+	 println("bad/unsupported declarator: ", gentext(direct_declarator),
+	    " at ", location(direct_declarator));
       }
       decl.name = direct_declarator.name;
       fix_type(pointer.t, direct_declarator);
@@ -1380,7 +1360,7 @@ attribution rules {
    };
    (["~" "!" "unary-" "unary+"] op) as expr -> post {
       if (exists op.t) {
-	 expr.t = usual_unary_conversion(op.t);
+	 expr.t = common_unary_conversion(op.t);
       } else {
 	 expr.t = null;
       }
@@ -1460,7 +1440,7 @@ attribution rules {
    };
    (["<<" ">>"] op1 op2) as expr -> post {
       if (exists op1.t) {
-	 expr.t = usual_unary_conversion(op1.t);
+	 expr.t = common_unary_conversion(op1.t);
       } else {
 	 expr.t = null;
       }

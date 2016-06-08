@@ -24,8 +24,7 @@ import ops;
 import printer;
 import cfg;
 
-sub ast_summary {
-   var node = args[0];
+sub ast_summary(node) {
    var node_type = cfg_type(node);
    var opening_types = {entry -> true, open_block -> true};
    var closing_types = {exit -> true, close_block -> true};
@@ -85,8 +84,7 @@ sub extend_path {
    return path;
 }
 
-sub print_path {
-   var path = args[0];
+sub print_path(path) {
    var pl = [];
    var p = path;
    var prev_summary;

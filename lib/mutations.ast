@@ -85,10 +85,9 @@ attribution rules mutate_functions {
    };
 }
 
-sub gen_mutations {
-   var troot = args[0]; // transformations are performed on this tree
-   var trules = args[1]; // function representing the mutation rules
-   var varname = args[2]; // variable name that decides which variant is taken
+/* clone & transform _troot_ where _trules_ provides the mutation rules
+   and _varname_ controls which variant is taken */
+sub gen_mutations(troot, trules, varname) {
    if (!exists troot.variant_count) {
       troot.variant_count = 0;
    }
