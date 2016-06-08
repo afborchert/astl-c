@@ -44,7 +44,7 @@ static int create_pipe(const std::string& cpp_path,
       int argi = 0;
       argv[argi++] = cpp_path.c_str();
       argv[argi++] = "-E";
-      for (unsigned int i = 0; i < args.size(); ++i) {
+      for (std::size_t i = 0; i < args.size(); ++i) {
 	 argv[argi++] = args[i].c_str();
       }
       argv[argi++] = input_file.c_str();

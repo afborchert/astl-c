@@ -17,10 +17,11 @@
 */
 
 #include <cassert>
-#include <iostream>
-#include <iomanip>
-#include <fstream>
 #include <cstdlib>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <sstream>
 #include <unistd.h>
 #include <astl/run.hpp>
 #include "scanner.hpp"
@@ -51,15 +52,16 @@ int main(int argc, char** argv) {
    if (argc == 0) usage();
    char* rules_name = *argv++; --argc;
    /* fetch pattern argument, if given */
-   unsigned int count = 0; char* pattern = 0;
+   std::size_t count = 0; char* pattern = 0;
    if (argc > 0) {
       pattern = *argv++; --argc;
    }
    /* fetch count argument, if given */
    if (argc > 0) {
       char* count_string = *argv++; --argc;
-      count = atoi(count_string);
-      if (count < 1) usage();
+      std::istringstream is(count_string);
+      is >> count;
+      if (!is || count < 1) usage();
    }
    /* all arguments should have been processed by now */
    if (argc > 0) usage();

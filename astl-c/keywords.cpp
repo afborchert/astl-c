@@ -93,7 +93,7 @@ static struct {
 };
 
 KeywordTable::KeywordTable() {
-   for (unsigned int i = 0; i < sizeof(keywords)/sizeof(keywords[0]); ++i) {
+   for (std::size_t i = 0; i < sizeof(keywords)/sizeof(keywords[0]); ++i) {
       tab[keywords[i].keyword] = keywords[i].token;
    }
 }

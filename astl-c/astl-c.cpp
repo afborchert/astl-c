@@ -57,7 +57,7 @@ class SyntaxTreeGeneratorForC: public SyntaxTreeGenerator {
 
 	 /* multiple sources to be processed? */
 	 bool multiple_sources = false;
-	 unsigned int source_count = 0;
+	 std::size_t source_count = 0;
 	 NodePtr super_root; // collecting multiple sources
 	 if (std::strcmp(*argv, "--sources--") == 0) {
 	    multiple_sources = true;

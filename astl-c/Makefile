@@ -24,9 +24,9 @@ Utils := ../bison-scripts
 Binaries := testlex testparser run astl-c
 
 CXX :=		g++
-CXXFLAGS :=	-Wall -std=c++14 -g -O2
+CXXFLAGS :=	-Wall -g -O2
 LDFLAGS :=
-CPPFLAGS +=	-I$(AstlPath)
+CPPFLAGS +=	-I$(AstlPath) -std=c++14
 LDLIBS := -lboost_iostreams -lgmp -lpcre2-8
 BISON := bison
 
