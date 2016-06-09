@@ -39,7 +39,7 @@ all the source files:
 
 ```
 $ misra-1410.ast example.c
-if-else-chain without final else at example.c:13.4-5
+if-else-chain without final else at example.c:6.4-10.4
 $
 ```
 
