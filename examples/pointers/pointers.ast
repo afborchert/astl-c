@@ -22,39 +22,39 @@ import sm;
 attribution rules {
    ("integer_constant" m{^0+[LUlu]*$}) as const -> {
       const.nullptr = true;
-   };
+   }
    ("octal_constant" m{^0+[LUlu]*$}) as const -> {
       const.nullptr = true;
-   };
+   }
    ("hexadecimal_constant" m{^0[xX]0+[LUlu]*$}) as const -> {
       const.nullptr = true;
-   };
+   }
    ("cast_expression" type_name value) as expr -> post {
       if (exists value.nullptr && exists expr.t &&
 	    (is_integer(expr.t) || is_pointer(expr.t))) {
 	 expr.nullptr = true;
       }
-   };
+   }
    ("," expr1 expr2) as expr -> post {
       if (exists expr2.nullptr) {
 	 expr.nullptr = true;
       }
-   };
+   }
    ("=" lvalue rvalue) as expr -> post {
       if (exists rvalue.nullptr) {
 	 expr.nullptr = true;
       }
-   };
+   }
    ("expression" e) as expr -> post {
       if (exists e.nullptr) {
 	 expr.nullptr = true;
       }
-   };
+   }
    ("initializer" ("expression" expr)) as initializer -> post {
       if (exists expr.nullptr) {
 	 initializer.nullptr = true;
       }
-   };
+   }
 }
 
 /*
@@ -87,7 +87,7 @@ state machine localptr: local_tracker (
 
    /* kill this instance when we are leaving the block
       where this variable was declared */
-   at close_block where node.astnode == block -> close;
+   at close_block where node.astnode == block -> close
 
    /* attempt to catch moments where pointers get a value:
        - within the initializer: varinit_begin and varinit_end
@@ -101,16 +101,16 @@ state machine localptr: local_tracker (
          welldefined with being either NULL or a valid pointer
        - otherwise we believe it to be non-NULL
    */
-   at varinit_begin where object == node.object -> initializing;
+   at varinit_begin where object == node.object -> initializing
    ("=" lvalue rvalue) at assignment_begin
-      where exists node.object && object == node.object -> initializing;
-   at * where exists node.astnode.nullptr when initializing -> seeing_nullptr;
+      where exists node.object && object == node.object -> initializing
+   at * where exists node.astnode.nullptr when initializing -> seeing_nullptr
    ("function_call" ("identifier" m{^[mc]alloc$}) args...)
-      when initializing or seeing_nullptr -> invoking_malloc;
+      when initializing or seeing_nullptr -> invoking_malloc
    at varinit_end or assignment_end
       when initializing -> nonnull
       when seeing_nullptr -> isnull
-      when invoking_malloc -> welldefined;
+      when invoking_malloc -> welldefined
 
    /* track invocations of free/cfree where our pointer variable
       is given */
@@ -123,7 +123,7 @@ state machine localptr: local_tracker (
 	 }
 	 when undefined -> {
 	    err("freeing an undefined pointer");
-	 };
+	 }
 
    /* track when our pointer is tested against NULL,
       this allows to proceed from welldefined to nonnull or isnull
@@ -131,19 +131,19 @@ state machine localptr: local_tracker (
    ("identifier" varname) as id at conditional_fork
       where exists id.object && id.object == object
       if t and when welldefined -> nonnull
-      if f and when welldefined -> isnull;
+      if f and when welldefined -> isnull
    ("!" ("identifier" varname) as id) at conditional_fork
       where exists id.object && id.object == object
       if t and when welldefined -> isnull
-      if f and when welldefined -> nonnull;
+      if f and when welldefined -> nonnull
    ("!=" ("identifier" varname) as id value) at conditional_fork
       where exists value.nullptr && exists id.object && id.object == object
       if t and when welldefined -> nonnull
-      if f and when welldefined -> isnull;
+      if f and when welldefined -> isnull
    ("==" ("identifier" varname) as id value) at conditional_fork
       where exists value.nullptr && exists id.object && id.object == object
       if t and when welldefined -> isnull
-      if f and when welldefined -> nonnull;
+      if f and when welldefined -> nonnull
 
    /* track when our pointer is dereferenced */
    ("pointer_dereference" ("identifier" varname) as id)
@@ -157,7 +157,7 @@ state machine localptr: local_tracker (
       }
       when isnull -> {
 	 err("dereferenced pointer is 0");
-      };
+      }
    /* check other pointer usages */
    ("identifier" varname) as id in ([assignment_operators] lvalue here)
       where exists id.object && id.object == object
@@ -166,5 +166,5 @@ state machine localptr: local_tracker (
       }
       when freed -> {
 	 err("assigning a freed pointer");
-      };
+      }
 }

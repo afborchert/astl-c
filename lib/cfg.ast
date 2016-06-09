@@ -295,15 +295,15 @@ attribution rules {
       graph.unresolved = {};
       graph.counter = 0;
       graph.callid = 0;
-   };
+   }
    ("translation_unit" *) -> post {
       if (exists graph.entries.main) {
 	 graph.root = graph.entries.main;
       }
-   };
+   }
    ("direct_declarator" ("identifier" id)) in ("declarator" *) as decl -> {
       decl.id = id;
-   };
+   }
    ("compound_statement" stmt...) as block -> post {
       if (stmt) {
 	 var open = cfg_node("open_block", block); init_node(open);
@@ -324,32 +324,32 @@ attribution rules {
 	 block.entry = node;
 	 block.exits = [node];
       }
-   };
+   }
    // other statements
    ("switch_statement" inner_stmt) as stmt -> post {
       stmt.entry = inner_stmt.entry;
       stmt.exits = inner_stmt.exits;
-   };
+   }
    // expression statements
    ("expression_statement") as stmt -> {
       var node = create_node(stmt);
       stmt.entry = node;
       stmt.exits = [node];
-   };
+   }
    ("expression_statement" expr) as stmt -> post {
       check_astnode(expr);
       var node = cfg_node("statement", stmt); init_node(node);
       connect(expr, node);
       stmt.entry = expr.entry;
       stmt.exits = [node];
-   };
+   }
    // expressions
    ("expression") as stmt -> post {
       // empty expression (can be used within for-statements)
       var node = create_node(stmt);
       stmt.entry = node;
       stmt.exits = [node];
-   };
+   }
    ("expression" expr) as stmt -> post {
       check_astnode(expr);
       // preliminary as we have to convert expressions
@@ -367,152 +367,152 @@ attribution rules {
 	 stmt.entry = node;
 	 stmt.exits = [node];
       }
-   };
+   }
    ("statement_expression" stmt) as expr -> post {
       expr.entry = stmt.entry;
       expr.exits = stmt.exits;
-   };
+   }
    ("condition" expr) as stmt -> post {
       stmt.entry = expr.entry;
       stmt.exits = expr.exits;
-   };
+   }
    ("condition" ("expression" ("integer_constant" "1"))) as stmt -> post {
       stmt.constant_condition = true;
-   };
+   }
    // terminals
    ("integer_constant" val) as stmt -> post {
       terminal(stmt);
-   };
+   }
    ("floating_constant" val) as stmt -> post {
       terminal(stmt);
-   };
+   }
    ("character_constant" val) as stmt -> post {
       terminal(stmt);
-   };
+   }
    ("string_literal" val) as stmt -> post {
       terminal(stmt);
-   };
+   }
    ("string_literal" s1 s2) as stmt -> post {
       terminal(stmt);
-   };
+   }
    ("identifier" id) as stmt -> post {
       terminal(stmt);
-   };
+   }
    // unary operators
    ("prefix--" a) as stmt -> post {
       unary_operator(stmt, a);
-   };
+   }
    ("prefix++" a) as stmt -> post {
       unary_operator(stmt, a);
-   };
+   }
    ("postfix--" a) as stmt -> post {
       unary_operator(stmt, a);
-   };
+   }
    ("postfix++" a) as stmt -> post {
       unary_operator(stmt, a);
-   };
+   }
    ("address_of" a) as stmt -> post {
       unary_operator(stmt, a);
-   };
+   }
    ("pointer_dereference" a) as stmt -> post {
       unary_operator(stmt, a);
-   };
+   }
    ("unary+" a) as stmt -> post {
       unary_operator(stmt, a);
-   };
+   }
    ("unary-" a) as stmt -> post {
       unary_operator(stmt, a);
-   };
+   }
    ("~" a) as stmt -> post {
       unary_operator(stmt, a);
-   };
+   }
    ("!" a) as stmt -> post {
       unary_operator(stmt, a);
-   };
+   }
    ("sizeof" ("type_name" *)) as stmt -> post {
       terminal(stmt);
-   };
+   }
    ("sizeof" a) as stmt where operator(a) != "type_name" -> post {
       unary_operator(stmt, a);
-   };
+   }
    ("cast_expression" t e) as stmt -> post {
       unary_operator(stmt, e);
-   };
+   }
    // gcc extensions
    ("label_as_value" label) as stmt -> post {
       terminal(stmt);
-   };
+   }
    ("assembler_instructions" *) as stmt -> post {
       /* currently ignoring the "asm goto" variant which could
 	 possibly jump to some label */
       terminal(stmt);
-   };
+   }
    // binary operators
    (["->" "."] a b) as stmt -> post {
       unary_operator(stmt, a); // the field name b is ignored here
-   };
+   }
    ("[]" a b) as stmt -> post {
       binary_operator(stmt, b, a);
-   };
+   }
    ("{}" typename initializer) as stmt -> post {
       // unary_operator(stmt, initializer); FIXME
       terminal(stmt);
-   };
+   }
    ("+" a b) as stmt -> post {
       binary_operator(stmt, a, b);
-   };
+   }
    ("-" a b) as stmt -> post {
       binary_operator(stmt, a, b);
-   };
+   }
    ("%" a b) as stmt -> post {
       binary_operator(stmt, a, b);
-   };
+   }
    ("*" a b) as stmt -> post {
       binary_operator(stmt, a, b);
-   };
+   }
    ("/" a b) as stmt -> post {
       binary_operator(stmt, a, b);
-   };
+   }
    ("|" a b) as stmt -> post {
       binary_operator(stmt, a, b);
-   };
+   }
    ("^" a b) as stmt -> post {
       binary_operator(stmt, a, b);
-   };
+   }
    ("&" a b) as stmt -> post {
       binary_operator(stmt, a, b);
-   };
+   }
    ("==" a b) as stmt -> post {
       binary_operator(stmt, a, b);
-   };
+   }
    ("!=" a b) as stmt -> post {
       binary_operator(stmt, a, b);
-   };
+   }
    ("<" a b) as stmt -> post {
       binary_operator(stmt, a, b);
-   };
+   }
    (">" a b) as stmt -> post {
       binary_operator(stmt, a, b);
-   };
+   }
    ("<=" a b) as stmt -> post {
       binary_operator(stmt, a, b);
-   };
+   }
    (">=" a b) as stmt -> post {
       binary_operator(stmt, a, b);
-   };
+   }
    ("<<" a b) as stmt -> post {
       binary_operator(stmt, a, b);
-   };
+   }
    (">>" a b) as stmt -> post {
       binary_operator(stmt, a, b);
-   };
+   }
    // short circuit operators
    ("&&" a b) as stmt -> post {
       connect_true(stmt, a, b);
-   };
+   }
    ("||" a b) as stmt -> post {
       connect_false(stmt, a, b);
-   };
+   }
    // assignment operators
    ([assignment_operators] lvalue rvalue) as stmt -> post {
       var node = create_node(stmt);
@@ -527,11 +527,11 @@ attribution rules {
       connect(begin, rvalue); connect(node, end);
       stmt.entry = begin;
       stmt.exits = [end];
-   };
+   }
    // comma operator
    ("," a b) as stmt -> post {
       binary_operator(stmt, a, b);
-   };
+   }
 
    // function calls
    ("argument_expression_list" arg) as stmt -> post {
@@ -540,46 +540,46 @@ attribution rules {
       check_astnode(arg);
       stmt.entry = arg.entry;
       stmt.exits = [node];
-   };
+   }
    ("argument_expression_list" args1 args2) as stmt -> post {
       connect(args1, args2);
       var node = cfg_node("param", args2); init_node(node);
       connect(args2, node);
       stmt.entry = args1.entry;
       stmt.exits = [node];
-   };
+   }
    ("function_call" ("identifier" id) args) as stmt -> post {
       function_call(stmt, id, args);
-   };
+   }
    ("function_call" ("identifier" id)) as stmt -> post {
       function_call(stmt, id);
-   };
+   }
    ("function_call" expr) as stmt where operator(expr) != "identifier" -> post {
       unary_operator(stmt, expr);
-   };
+   }
    ("function_call" expr args) as stmt
 	 where operator(expr) != "identifier" -> post {
       binary_operator(stmt, expr, args);
-   };
+   }
    ("initializer") as stmt -> post {
       var node = create_node(stmt);
       stmt.entry = node;
       stmt.exits = [node];
       node.hidden = true;
-   };
+   }
    ("initializer" ("expression" *) as expr) as stmt -> post {
       wrap_node(stmt, expr);
-   };
+   }
    ("initializer_list" initializer) as stmt -> post {
       wrap_node(stmt, initializer);
-   };
+   }
    ("initializer_list" initializer_list initializer) as stmt -> post {
       check_astnode(initializer_list);
       check_astnode(initializer);
       connect(initializer_list, initializer);
       stmt.entry = initializer_list.entry;
       stmt.exits = initializer.exits;
-   };
+   }
    ("declaration" *) as stmt -> post {
       var prevnode;
       var firstnode;
@@ -622,43 +622,43 @@ attribution rules {
 	 stmt.exits = [node];
 	 node.hidden = true;
       }
-   };
+   }
    // targets or sources of various jump statements
    ("switch_or_iteration_statement" *) as stmt -> pre {
       stmt.breaks = [];
-   };
+   }
    ("iteration_statement" *) as stmt -> pre {
       stmt.continues = [];
-   };
+   }
    ("switch_statement" *) as stmt -> pre {
       stmt.labels = [];
-   };
+   }
    ("break") as stmt in ("switch_or_iteration_statement" *) as outer_stmt -> {
       var node = create_node(stmt);
       stmt.entry = node;
       stmt.exits = [];
       push(outer_stmt.breaks, node);
-   };
+   }
    ("continue") as stmt in ("iteration_statement" *) as outer_stmt -> {
       var node = create_node(stmt);
       stmt.entry = node;
       stmt.exits = [];
       push(outer_stmt.continues, node);
-   };
+   }
    
 
    ("switch_or_iteration_statement" inner_stmt) as stmt -> post {
       stmt.entry = inner_stmt.entry;
       stmt.exits = inner_stmt.exits & stmt.breaks;
-   };
+   }
    ("iteration_statement" inner_stmt) as stmt -> post {
       stmt.entry = inner_stmt.entry;
       stmt.exits = inner_stmt.exits;
-   };
+   }
    ("switch_statement" inner_stmt) as stmt -> post {
       stmt.entry = inner_stmt.entry;
       stmt.exits = inner_stmt.exits;
-   };
+   }
    ("while" cond block) as stmt
 	 in ("iteration_statement" *) as outer_stmt -> post {
       if (exists cond.constant_condition && cond.constant_condition) {
@@ -672,7 +672,7 @@ attribution rules {
 	 connect_jumps(outer_stmt.continues, cond);
 	 stmt.exits = stmt.condexits; // remove exits of block
       }
-   };
+   }
    ("do" block cond) as stmt
 	 in ("iteration_statement" *) as outer_stmt -> post {
       connect(block, cond);
@@ -680,14 +680,14 @@ attribution rules {
       connect_jumps(outer_stmt.continues, cond);
       stmt.entry = block.entry;
       stmt.exits = stmt.condexits; // remove exits of block
-   };
+   }
    ("for" block) as stmt
 	 in ("iteration_statement" *) as outer_stmt -> post {
       stmt.entry = block.entry;
       stmt.exits = [];
       connect(block, block);
       connect_jumps(outer_stmt.continues, block);
-   };
+   }
 // cases with 3 expressions   
    ("for" init cond incr block) as stmt
 	 in ("iteration_statement" *) as outer_stmt -> post {
@@ -697,33 +697,33 @@ attribution rules {
       connect_jumps(outer_stmt.continues, incr);
       connect(incr, cond);
       stmt.exits = stmt.condexits;
-   };
+   }
    // if statements
    ("if" cond then) as stmt -> post {
       connect_true(stmt, cond, then);
-   };
+   }
    ("if" cond then_stmt else_stmt) as stmt -> post {
       connect_true(stmt, cond, then_stmt);
       connect_false(stmt, cond, else_stmt);
-   };
+   }
    // tertiary ?: operator
    ("conditional_expression" expr1 expr2 expr3) as stmt -> post {
       connect_true(stmt, expr1, expr2);
       connect_false(stmt, expr1, expr3);
-   };
+   }
    ("conditional_expression" expr1 expr2) as stmt -> post {
       // gcc extension: http://gcc.gnu.org/onlinedocs/gcc/Conditionals.html
       connect_false(stmt, expr1, expr2);
-   };
+   }
    // like ?: but evaluated at compilation time (gcc extension)
    ("choose_expr" expr1 expr2 expr3) as stmt -> post {
       connect_true(stmt, expr1, expr2);
       connect_false(stmt, expr1, expr3);
-   };
+   }
    // switch statement
    ("switch" expr block) as stmt -> pre {
       stmt.cases = [];
-   };
+   }
    ("switch" expr block) as stmt
 	 in ("switch_or_iteration_statement" *) as outer_stmt -> post {
       stmt.entry = expr.entry;
@@ -737,14 +737,14 @@ attribution rules {
       if (!exists stmt.default) {
 	 push(stmt.exits, node);
       }
-   };
+   }
    ("case" expr case_stmt) as stmt in ("switch" *) as switch -> post {
       var node = create_node(stmt);
       stmt.entry = node;
       stmt.exits = case_stmt.exits;
       connect(node, case_stmt);
       push(switch.cases, node);
-   };
+   }
    ("default" case_stmt) as stmt in ("switch" *) as switch -> post {
       var node = create_node(stmt);
       stmt.entry = node;
@@ -752,7 +752,7 @@ attribution rules {
       connect(node, case_stmt);
       push(switch.cases, node);
       switch.default = stmt;
-   };
+   }
 
 
    // return statements
@@ -761,14 +761,14 @@ attribution rules {
       stmt.entry = node;
       stmt.exits = [];
       cfg_connect(node, fdef.exit);
-   };
+   }
    ("return" expr) as stmt in ("function_definition" *) as fdef -> post {
       stmt.entry = expr.entry;
       stmt.exits = [];
       var node = create_node(stmt);
       connect(expr, node);
       cfg_connect(node, fdef.exit);
-   };
+   }
    ("labeled_statement" ("identifier" ident) labeled_stmt) as stmt 
           in ("function_definition" *) as fdef -> post {
       fdef.goto{ident} = labeled_stmt.entry;
@@ -779,7 +779,7 @@ attribution rules {
       }
       stmt.entry = labeled_stmt.entry;
       stmt.exits = labeled_stmt.exits;
-    };
+    }
     ("goto" ("identifier" ident)) as stmt in ("function_definition" *)
            as fdef -> pre {
          var goto = cfg_node(stmt); init_node(goto);
@@ -793,7 +793,7 @@ attribution rules {
 	 }
 	 stmt.entry = goto;
 	 stmt.exits = [];
-   };
+   }
    // gcc extension: computed goto
    ("computed_goto" target) as stmt -> post {
       var goto = cfg_node(stmt); init_node(goto);
@@ -801,13 +801,13 @@ attribution rules {
       // we need to compute a list of possible targets,
       // not done yet
       stmt.exits = [];
-   };
+   }
    // gcc extension
    ("unreachable") as stmt -> post {
       var unreachable = cfg_node(stmt); init_node(stmt);
       stmt.entry = unreachable;
       stmt.exits = [];
-   };
+   }
    // function declarations
    ("function_definition" declaration block) as fdef -> pre {
       fdef.exit = cfg_node("exit"); init_node(fdef.exit);
@@ -816,7 +816,7 @@ attribution rules {
       fdef.vars = {};
       var labeled;
       var search;
-   };
+   }
    ("function_definition" declaration block) as fdef -> post {
       var id;
       foreach object in (declaration.objects) {
@@ -839,7 +839,7 @@ attribution rules {
 	    delete graph.unresolved{id};
 	 }
       }
-   };
+   }
    ("translation_unit" *) -> post {
       foreach id in (graph.unresolved) {
 	 foreach caller in (graph.unresolved{id}) {
@@ -847,5 +847,5 @@ attribution rules {
 	    cfg_connect(caller.call, caller.rtn, "extern");
 	 }
       }
-   };
+   }
 }

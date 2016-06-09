@@ -57,12 +57,12 @@ int main(int argc, char** argv) {
    semantic_type yylval;
    int token;
    while ((token = scanner->get_token(yylval, loc)) != 0) {
-      cout <<  yytname[token - 255];
+      cout << yytname[token - 255];
       if (yylval) {
 	 cout << " \"" << yylval->get_token().get_text() << '"';
 	 yylval = NodePtr(nullptr);
       }
-      cout << " at " << loc;
+      cout << " at " << make_loc(loc);
       cout << endl;
    }
    delete scanner;

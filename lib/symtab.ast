@@ -52,7 +52,7 @@ attribution rules {
 	 union -> {},
 	 enum -> {},
       };
-   };
+   }
    ("translation_unit" *) as block -> pre {
       var t = {kind -> "builtin", name -> "__builtin_va_list",
 	 qualifiers -> {}};
@@ -63,11 +63,11 @@ attribution rules {
 	 name -> "__builtin_va_list",
 	 t -> t
       };
-   };
+   }
    (blocks *) as inner_block in (blocks *) as outer_block -> pre {
       inner_block.level = outer_block.level + 1;
       inner_block.up = outer_block;
-   };
+   }
 }
 
 /*
@@ -686,14 +686,14 @@ attribution rules {
       decl.attributes = []; // gcc attributes
       decl.t = {qualifiers -> {}};
       decl.objects = [];
-   };
+   }
 
    ("struct_declarator" (":" expr)) as sdecl
 	 in (decls *) as decl -> post {
       sdecl.t = {kind -> "bitfield", length -> expr};
       var obj = {astnode -> sdecl, t -> sdecl.t};
       push(decl.objects, obj);
-   };
+   }
    ("struct_declarator" idecl (":" expr)) as sdecl
 	 in (decls *) as decl -> post {
       sdecl.t = {kind -> "bitfield", length -> expr, rtype -> idecl.t};
@@ -702,7 +702,7 @@ attribution rules {
 	 obj.name = idecl.name;
       }
       push(decl.objects, obj);
-   };
+   }
    ("struct_declarator" ("declarator" *) as idecl) as sdecl
 	 in (decls *) as decl -> post {
       sdecl.t = idecl.t;
@@ -711,7 +711,7 @@ attribution rules {
 	 obj.name = idecl.name;
       }
       push(decl.objects, obj);
-   };
+   }
    ("init_declarator" declarator) as sdecl
 	 in (decls *) as decl -> post {
       var obj = {astnode -> declarator, t -> declarator.t};
@@ -719,7 +719,7 @@ attribution rules {
 	 obj.name = declarator.name;
       }
       push(decl.objects, obj);
-   };
+   }
    ("init_declarator" declarator initializer) as sdel
 	 in (decls *) as decl -> post {
       var obj = {astnode -> declarator, t -> declarator.t};
@@ -728,12 +728,12 @@ attribution rules {
 	 obj.initializer = initializer;
       }
       push(decl.objects, obj);
-   };
+   }
 
    // initializers
    ("initializer" ("expression" expr)) as initializer -> post {
       initializer.t = expr.t;
-   };
+   }
 
    (decls *) as decl in (blocks *) as block -> post {
       foreach attr in (decl.attributes) {
@@ -763,11 +763,11 @@ attribution rules {
 	    obj.class = "declaration";
 	 }
       }
-   };
+   }
    ("type_name" sqlist abstract_declarator) as decl -> post {
       fix_type(decl.t, abstract_declarator);
       decl.t = abstract_declarator.t;
-   };
+   }
    ("declaration" *) as decl
 	 in ("function_definition" here list... body) as fdef -> post {
       foreach obj in (decl.objects) {
@@ -787,7 +787,7 @@ attribution rules {
 	    }
 	 }
       }
-   };
+   }
    ("declaration" *) as decl
 	 in ("function_definition" here other...)
 	 and in (blocks *) as block -> post {
@@ -797,7 +797,7 @@ attribution rules {
 	    insert_object(block, obj);
 	 }
       };
-   };
+   }
 
    ("parameter_declaration" specifiers declarator) as decl -> post {
       var obj = {
@@ -809,65 +809,65 @@ attribution rules {
 	 obj.name = declarator.name;
       }
       push(decl.objects, obj);
-   };
+   }
 
    // left hand side of a declaration
    ("type_qualifier" qualifier) as sq
 	 in (type_qualifier_targets *) as decl -> post {
       decl.t.qualifiers{qualifier} = 1;
-   };
+   }
    ("function_specifier" specifier) as sq
 	 in (decls *) as decl -> post {
       decl.function_specifiers{specifier} = 1;
-   };
+   }
    ("storage_class_specifier" specifier) as sq
 	 in (decls *) as decl -> post {
       decl.storage_class_specifiers{specifier} = 1;
-   };
+   }
    ("void") as ts -> {
       ts.t = get_void_type();
-   };
+   }
    ("_Bool") as ts -> {
       ts.t = {kind -> "integer", size -> "_Bool", kind_final -> 1,
 	 name -> "_Bool"};
-   };
+   }
    ("char") as ts -> {
       ts.t = {kind -> "integer", size -> "char", kind_final -> 1,
          name -> "char"};
-   };
+   }
    ("int") as ts -> {
       ts.t = get_int_type();
-   };
+   }
    ("float") as ts -> {
       ts.t = {kind -> "real", size -> "float", kind_final -> 0,
          name -> "float"};
-   };
+   }
    ("double") as ts -> {
       ts.t = {kind -> "real", size -> "double", kind_final -> 0,
          name -> "double"};
-   };
+   }
    ("_Complex") as ts -> {
       ts.t = {kind -> "complex", kind_final -> 1, name -> "_Complex"};
-   };
+   }
    ("_Imaginary") as ts -> {
       ts.t = {kind -> "complex", kind_final -> 1, name -> "_Imaginary"};
-   };
+   }
    ("long") as ts -> {
       ts.t = {kind -> "integer", size -> "long", kind_final -> 0,
 	 name -> "int"};
-   };
+   }
    ("short") as ts -> {
       ts.t = {kind -> "integer", size -> "short", kind_final -> 1,
          name -> "int"};
-   };
+   }
    ("signed") as ts -> {
       ts.t = {kind -> "integer", signed -> 1, kind_final -> 1,
          name -> "int"};
-   };
+   }
    ("unsigned") as ts -> {
       ts.t = {kind -> "integer", signed -> 0, kind_final -> 1,
          name -> "int"};
-   };
+   }
    ("type_specifier" specifier) as sq in (decls *) as decl -> post {
       if (exists(decl.t.kind)) {
 	 var t = decl.t;
@@ -897,13 +897,13 @@ attribution rules {
 	 specifier.t.qualifiers = decl.t.qualifiers;
 	 decl.t = specifier.t;
       }
-   };
+   }
    ("typeof" ("type_name" *) as tn) as tspec -> post {
       tspec.t = tn.t;
-   };
+   }
    ("typeof" expr) as tspec -> post {
       tspec.t = expr.t;
-   };
+   }
    ("typedef_name" name) as tdn in (decls *) as decl
 	 and in (blocks *) as block -> post {
       var t = lookup_type(block, name);
@@ -922,50 +922,50 @@ attribution rules {
 	 }
       }
       tdn.t = t;
-   };
+   }
    // gcc extensions for attribute specifiers
    ("attribute_parameter" expr) as decl -> post {
       decl.params = [expr];
-   };
+   }
    ("attribute_parameters" parameters parameter) as decl -> post {
       decl.params = parameters.params & parameter.params;
-   };
+   }
    ("attribute") as decl -> post {
       decl.attributes = {};
-   };
+   }
    ("attribute" name) as decl -> post {
       decl.attributes = {};
       decl.attributes{gentext(name)} = true;
-   };
+   }
    ("attribute" name parameters) as decl -> post {
       decl.attributes = {};
       decl.attributes{gentext(name)} = parameters.params;
-   };
+   }
    ("attribute_list" attributes attribute) as decl -> post {
       decl.attributes = attributes.attributes + attribute.attributes;
-   };
+   }
    ("attribute_specifier" atlist) as atspec
 	 in ("declaration_specifiers" *) and in (decls *) as decl -> post {
       push(decl.attributes, {
 	 attributes -> atlist.attributes,
 	 atnode -> atlist
       });
-   };
+   }
    ("attribute_specifier" atlist) as atspec
 	 in (attribute_specifier_targets *) -> post {
       atspec.attributes = atlist.attributes;
-   };
+   }
    ("attribute_specifier_list" spec) as atspec -> post {
       atspec.attributes = spec.attributes;
-   };
+   }
    ("attribute_specifier_list" list spec) as atspec -> post {
       atspec.attributes = list.attributes + spec.attributes;
-   };
+   }
 
    ("declarator" direct_declarator) as decl -> post {
       decl.name = direct_declarator.name;
       decl.t = direct_declarator.t;
-   };
+   }
    ("declarator_with_attributes" declarator atlist) as decl -> post {
       decl.name = declarator.name;
       var t = {
@@ -975,7 +975,7 @@ attribution rules {
       };
       fix_type(t, declarator);
       decl.t = declarator.t;
-   };
+   }
    (declarators pointer direct_declarator) as decl -> post {
       if (!exists direct_declarator.name) {
 	 println("bad/unsupported declarator: ", gentext(direct_declarator),
@@ -984,43 +984,43 @@ attribution rules {
       decl.name = direct_declarator.name;
       fix_type(pointer.t, direct_declarator);
       decl.t = direct_declarator.t;
-   };
+   }
 
    ("abstract_declarator" (pointers *) as pointer) as decl -> post {
       decl.name = null;
       decl.t = pointer.t;
-   };
+   }
    ("abstract_declarator"
 	 ("direct_abstract_declarator" *) as ddecl) as decl -> post {
       decl.name = null;
       decl.t = ddecl.t;
-   };
+   }
 
    ("type_qualifier_list" *) as tql -> pre {
       tql.t = {qualifiers -> {}};
-   };
+   }
    ("type_qualifier_and_attribute_specifier_list" *) as tql -> pre {
       tql.t = {qualifiers -> {}};
       tql.attributes = {};
-   };
+   }
    ("type_qualifier_and_attribute_specifier_list"
 	 ("attribute_specifier" *) as attr) as tql -> post {
       tql.attributes = attr.attributes;
-   };
+   }
    ("type_qualifier_and_attribute_specifier_list"
 	 list ("attribute_specifier" *) as attr) as tql -> post {
       tql.t = list.t;
       tql.attributes = list.attributes + attr.attributes;
-   };
+   }
    ("type_qualifier_and_attribute_specifier_list"
 	 list ("type_qualifier" *) as tq) as tql -> post {
       tql.t.qualifiers += list.t.qualifiers;
       tql.attributes = list.attributes;
-   };
+   }
 
    ("pointer") as pointer -> post {
       pointer.t = {kind -> "pointer", qualifiers -> {}};
-   };
+   }
    ("pointer" ("type_qualifier_and_attribute_specifier_list" *) as tql)
 	 as pointer -> post {
       var t;
@@ -1031,10 +1031,10 @@ attribution rules {
       if (defined(t)) {
 	 pointer.t.rtype = t;
       }
-   };
+   }
    ("pointer" ("pointer" *) as rtype) as pointer -> post {
       pointer.t = {kind -> "pointer", qualifiers -> {}, rtype -> rtype.t};
-   };
+   }
    ("pointer" ("type_qualifier_and_attribute_specifier_list" *) as tql
 	 ("pointer" *) as rtype) as pointer -> post {
       var t = rtype.t;
@@ -1043,12 +1043,12 @@ attribution rules {
       }
       pointer.t = {kind -> "pointer", qualifiers -> tql.t.qualifiers,
 	 rtype -> t};
-   };
+   }
 
    // parameter lists
    ("parameter_type_list" *) as ptl -> pre {
       ptl.parameters = [];
-   };
+   }
    ("parameter_declaration" specifiers declarator) as pd
 	 in ("parameter_type_list" *) as ptl -> post {
       var parameter = {t -> pd.t};
@@ -1056,57 +1056,57 @@ attribution rules {
 	 parameter.name = declarator.name;
       }
       push(ptl.parameters, parameter);
-   };
+   }
    ("parameter_declaration" specifiers) as pd
 	 in ("parameter_type_list" *) as ptl -> post {
       push(ptl.parameters, {t -> pd.t});
-   };
+   }
    ("parameter_type_list" parameter_list dots) as ptl -> post {
       push(ptl.parameters, {varargs -> 1});
-   };
+   }
    ("identifier_list" ("identifier" id)) as idlist -> post {
       idlist.names = [id];
-   };
+   }
    ("identifier_list" list ("identifier" id)) as idlist -> post {
       idlist.names = list.names & [id];
-   };
+   }
 
    // direct declarators
    ("direct_declarator" ("identifier" id)) as ddecl -> post {
       ddecl.name = tokentext(id);
       ddecl.t = null;
-   };
+   }
    (direct_declarators ("()" declarator)) as ddecl -> post {
       ddecl.name = declarator.name;
       ddecl.t = declarator.t;
-   };
+   }
    ("direct_abstract_declarator" ("[]")) as ddecl -> post {
       ddecl.name = null;
       ddecl.t = {kind -> "array", qualifiers -> {}};
-   };
+   }
    (direct_declarators iddecl ("[]")) as ddecl -> post {
       ddecl.name = iddecl.name;
       var t = {kind -> "array", qualifiers -> {}};
       fix_type(t, iddecl);
       ddecl.t = iddecl.t;
-   };
+   }
    ("direct_abstract_declarator" ("[]" ("expression" expr))) as ddecl -> post {
       ddecl.name = null;
       ddecl.t = {kind -> "array", size -> expr, qualifiers -> {}};
-   };
+   }
    (direct_declarators iddecl ("[]" ("expression" expr))) as ddecl -> post {
       ddecl.name = iddecl.name;
       var t = {kind -> "array", size -> expr, qualifiers -> {}};
       fix_type(t, iddecl);
       ddecl.t = iddecl.t;
-   };
+   }
    ("direct_declarator" iddecl
 	 ("[]" ("type_qualifier_list" *) as tql)) as ddecl -> post {
       ddecl.name = iddecl.name;
       var t = {kind -> "array", qualifiers -> tql.t.qualifiers};
       fix_type(t, iddecl);
       ddecl.t = iddecl.t;
-   };
+   }
    ("direct_declarator" iddecl
 	 ("[]" ("type_qualifier_list" *) as tql
 	 ("expression" expr))) as ddecl -> post {
@@ -1114,14 +1114,14 @@ attribution rules {
       var t = {kind -> "array", size -> expr, qualifiers -> tql.t.qualifiers};
       fix_type(t, iddecl);
       ddecl.t = iddecl.t;
-   };
+   }
    ("direct_declarator" iddecl
 	 ("[]" ("static") ("expression" expr))) as ddecl -> post {
       ddecl.name = iddecl.name;
       var t = {kind -> "array", size -> expr, static -> 1, qualifiers -> {}};
       fix_type(t, iddecl);
       ddecl.t = iddecl.t;
-   };
+   }
    ("direct_declarator" iddecl
 	 ("[]" ("static") ("type_qualifier_list" *) as tql
 	 ("expression" expr))) as ddecl -> post {
@@ -1130,46 +1130,46 @@ attribution rules {
 	 qualifiers -> tql.t.qualifiers, static -> 1};
       fix_type(t, iddecl);
       ddecl.t = iddecl.t;
-   };
+   }
    ("direct_abstract_declarator" ("[]" ("*"))) as ddecl -> post {
       ddecl.name = null;
       ddecl.t = {kind -> "array", dynarray -> 1, qualifiers -> {}};
-   };
+   }
    (direct_declarators iddecl ("[]" ("*"))) as ddecl -> post {
       ddecl.name = iddecl.name;
       var t = {kind -> "array", dynarray -> 1, qualifiers -> {}};
       fix_type(t, iddecl);
       ddecl.t = iddecl.t;
-   };
+   }
    ("direct_declarator" iddecl
 	 ("[]" ("type_qualifier_list" *) as tql ("*"))) as ddecl -> post {
       ddecl.name = iddecl.name;
       var t = {kind -> "array", dynarray -> 1, qualifiers -> tql.t.qualifiers};
       fix_type(t, iddecl);
       ddecl.t = iddecl.t;
-   };
+   }
    ("direct_abstract_declarator"
 	 ("()" ("parameter_type_list" *) as paramlist)) as ddecl -> post {
       ddecl.name = null;
       ddecl.t = {kind -> "function", parameters -> paramlist.parameters};
-   };
+   }
    (direct_declarators iddecl
 	 ("()" ("parameter_type_list" *) as paramlist)) as ddecl -> post {
       ddecl.name = iddecl.name;
       var t = {kind -> "function", parameters -> paramlist.parameters};
       fix_type(t, iddecl);
       ddecl.t = iddecl.t;
-   };
+   }
    ("direct_abstract_declarator" ("()")) as ddecl -> post {
       ddecl.name = null;
       ddecl.t = {kind -> "function"};
-   };
+   }
    (direct_declarators iddecl ("()")) as ddecl -> post {
       ddecl.name = iddecl.name;
       var t = {kind -> "function"};
       fix_type(t, iddecl);
       ddecl.t = iddecl.t;
-   };
+   }
    ("direct_declarator" iddecl
 	 ("()" ("identifier_list" *) as idlist)) as ddecl -> post {
       var parameters = [];
@@ -1181,7 +1181,7 @@ attribution rules {
       var t = {kind -> "function", parameters -> parameters, krstyle -> 1};
       fix_type(t, iddecl);
       ddecl.t = iddecl.t;
-   };
+   }
    ("direct_declarator_with_attributes" iddecl atlist) as ddecl -> post {
       ddecl.name = iddecl.name;
       var t = {
@@ -1191,18 +1191,18 @@ attribution rules {
       };
       fix_type(t, iddecl);
       ddecl.t = iddecl.t;
-   };
+   }
 
    // structs and unions
    ("struct_declaration_list") as sdl -> post {
       sdl.list = [];
-   };
+   }
    ("struct_declaration_list" declaration) as sdl -> post {
       sdl.list = [declaration.objects];
-   };
+   }
    ("struct_declaration_list" list declaration) as sdl -> post {
       sdl.list = list.list & [declaration.objects];
-   };
+   }
    (struct_or_union ("struct_declaration_list" *) as sdl) as struct -> post {
       fix_struct(struct, sdl);
       struct.t = {
@@ -1210,7 +1210,7 @@ attribution rules {
 	 members -> struct.members,
 	 list -> sdl.list
       };
-   };
+   }
    (struct_or_union
 	 (struct_or_union_name ("identifier" id)) sdl) as struct
 	 in (blocks *) as block -> post {
@@ -1226,7 +1226,7 @@ attribution rules {
 	    members -> struct.members, list -> sdl.list};
 	 insert_typeref(block, struct.t);
       }
-   };
+   }
    (struct_or_union
 	 (struct_or_union_name ("identifier" id))) as struct
 	 in (blocks *) as block -> post {
@@ -1238,33 +1238,33 @@ attribution rules {
 	 struct.t = {kind -> kind, name -> id};
 	 insert_typeref(block, struct.t);
       }
-   };
+   }
    // special case of struct declarations w/o a named object
    ("struct_declaration" struct_or_union_specifier) as decl -> post {
       var obj = {
 	 t -> struct_or_union_specifier.t
       };
       push(decl.objects, obj);
-   };
+   }
    // gcc attributes extension
    ("struct_or_union_specifier_with_attributes" struct atlist)
 	 as atstruct -> post {
       atstruct.t = struct.t;
       atstruct.t{attributes} = atlist.attributes;
-   };
+   }
 
    ("enum" *) as enum -> pre {
       enum.enumerators = [];
-   };
+   }
    ("enumerator" ("identifier" id)) as enumerator
 	 in ("enum" *) as enum -> post {
       push(enum.enumerators, {name -> id, astnode -> enumerator});
-   };
+   }
    ("enumerator" ("identifier" id) expr) as enumerator
 	 in ("enum" *) as enum -> post {
       push(enum.enumerators, {name -> id, expr -> expr,
          astnode -> enumerator});
-   };
+   }
    ("enum" ("enumerator_list" *)) as enum
 	 in (blocks *) as block -> post {
       enum.t = {kind -> enum, enumerators -> enum.enumerators};
@@ -1273,7 +1273,7 @@ attribution rules {
 	    astnode -> enumerator.astnode};
 	 insert_object(block, obj);
       }
-   };
+   }
    ("enum" ("enum_name" ("identifier" id)) list) as enum
 	 in (blocks *) as block -> post {
       var t = lookup_typeref(block, "enum", id);
@@ -1289,7 +1289,7 @@ attribution rules {
 	    astnode -> enumerator.astnode};
 	 insert_object(block, obj);
       }
-   };
+   }
    ("enum" ("enum_name" ("identifier" id))) as enum
 	 in (blocks *) as block -> post {
       var t = lookup_typeref(block, "enum", id);
@@ -1299,11 +1299,11 @@ attribution rules {
 	 enum.t = {kind -> "enum", name -> id};
 	 insert_typeref(block, enum.t);
       }
-   };
+   }
    ("enum_specifier_with_attributes" enum atlist) as atenum -> post {
       atenum.t = enum.t;
       atenum.t{attributes} = atlist.attributes;
-   };
+   }
 
    // types of expressions
    ("identifier" id) as ident in (blocks *) as block -> {
@@ -1311,22 +1311,22 @@ attribution rules {
       if (ident.object) {
 	 ident.t = ident.object.t;
       }
-   };
+   }
    ("integer_constant" decimal) as const -> {
       const.t = get_int_type();
-   };
+   }
    ("octal_constant" octal) as const -> {
       const.t = get_int_type();
-   };
+   }
    ("hexadecimal_constant" hex) as const -> {
       const.t = get_int_type();
-   };
+   }
    ("character_constant" char) as const -> {
       const.t = get_int_type();
-   };
+   }
    ("floating_constant" literal) as const -> {
       const.t = get_double_type();
-   };
+   }
    ("string_literal" *) as const -> {
       const.t = {
 	 kind -> "pointer",
@@ -1339,7 +1339,7 @@ attribution rules {
 	    qualifiers -> {const -> 1}
 	 }
       };
-   };
+   }
    ("[]" array index) as expr -> post {
       if (exists array.t && array.t &&
 	    (array.t.kind == "array" || array.t.kind == "pointer")) {
@@ -1347,24 +1347,24 @@ attribution rules {
       } else {
 	 expr.t = null;
       }
-   };
+   }
    ("{}" type_name initializer...) as expr -> post {
       if (exists type_name.t) {
 	 expr.t = type_name.t;
       } else {
 	 expr.t = null;
       }
-   };
+   }
    ("sizeof" *) as expr -> post {
       expr.t = {kind -> "integer", kind_final -> 1, name -> "size_t"};
-   };
+   }
    (["~" "!" "unary-" "unary+"] op) as expr -> post {
       if (exists op.t) {
 	 expr.t = common_unary_conversion(op.t);
       } else {
 	 expr.t = null;
       }
-   };
+   }
    ("address_of" op) as expr -> post {
       if (exists op.t && op.t) {
 	 expr.t = {
@@ -1375,21 +1375,21 @@ attribution rules {
       } else {
 	 expr.t = null;
       }
-   };
+   }
    ("pointer_dereference" op) as expr -> post {
       if (exists op.t && op.t && op.t.kind == "pointer") {
 	 expr.t = op.t.rtype;
       } else {
 	 expr.t = null;
       }
-   };
+   }
    ("cast_expression" type_name value) as expr -> post {
       if (exists type_name.t) {
 	 expr.t = type_name.t;
       } else {
 	 expr.t = null;
       }
-   };
+   }
    ("function_call" f args...) as expr -> post {
       if (exists f.t && f.t) {
 	 var t = f.t;
@@ -1405,7 +1405,7 @@ attribution rules {
 	 // undeclared functions are assumed to return int
 	 expr.t = get_int_type();
       }
-   };
+   }
    ("." value ("identifier" ident)) as expr -> post {
       if (exists value.t && value.t &&
 	    (value.t.kind == "struct" || value.t.kind == "union") &&
@@ -1414,7 +1414,7 @@ attribution rules {
       } else {
 	 expr.t = null;
       }
-   };
+   }
    ("->" value ("identifier" ident)) as expr -> post {
       if (exists value.t && value.t &&
 	    (value.t.kind == "pointer" || value.t.kind == "array")) {
@@ -1427,41 +1427,41 @@ attribution rules {
       } else {
 	 expr.t = null;
       }
-   };
+   }
    (["postfix++" "postfix--" "prefix++" "prefix--"] lvalue) as expr -> post {
       if (exists lvalue.t) {
 	 expr.t = lvalue.t;
       } else {
 	 expr.t = null;
       }
-   };
+   }
    ([arithmetic_operators binary_operators] op1 op2) as expr -> post {
       expr.t = compute_type_of_binary_op(op1, op2, operator(expr));
-   };
+   }
    (["<<" ">>"] op1 op2) as expr -> post {
       if (exists op1.t) {
 	 expr.t = common_unary_conversion(op1.t);
       } else {
 	 expr.t = null;
       }
-   };
+   }
    ([logical_operators comparison_operators] op1 op2) as expr -> post {
       expr.t = get_int_type();
-   };
+   }
    ([assignment_operators] lvalue rvalue) as expr -> post {
       if (exists lvalue.t) {
 	 expr.t = lvalue.t;
       } else {
 	 expr.t = null;
       }
-   };
+   }
    ("," op1 op2) as expr -> post {
       if (exists op2.t) {
 	 expr.t = op2.t;
       } else {
 	 expr.t = null;
       }
-   };
+   }
    ("conditional_expression" cond expr1 expr2) as expr -> post {
       if (exists expr1.t && exists expr2.t) {
 	 if (get_rank(expr1.t) > 0 && get_rank(expr2.t) > 0) {
@@ -1476,27 +1476,27 @@ attribution rules {
       } else {
 	 expr.t = null;
       }
-   };
+   }
    (["condition" "expression" "expression_statement"] e) as expr -> post {
       if (exists e.t) {
 	 expr.t = e.t;
       } else {
 	 expr.t = null;
       }
-   };
+   }
    ("statement_expression"
 	 ("compound_statement" stmts...
 	    ("expression_statement" last_expr))) as expr -> post {
       expr.t = last_expr.t;
-   };
+   }
    ("statement_expression" *) as expr -> post {
       if (!exists expr.t) {
 	 expr.t = get_void_type();
       }
-   };
+   }
    ("expression" e) as expr -> post {
       if (exists e.t) {
 	 expr.t = e.t;
       }
-   };
+   }
 }

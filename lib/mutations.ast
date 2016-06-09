@@ -28,7 +28,7 @@ print rules {
 	 $stmts
 	 $...
       }
-   };
+   }
 }
 
 inplace transformation rules insert_mutated_variants {
@@ -46,7 +46,7 @@ inplace transformation rules insert_mutated_variants {
 	       )
 	    )
 	 )
-	 { iv.variants = block.variants; block.transformed = true; };
+	 { iv.variants = block.variants; block.transformed = true; }
    ("compound_statement" stmts...  ("insert_variants") as iv)
 	 where len(iv.variants) > 1 ->
       { iv.block = pop(iv.variants); iv.id = iv.block.id; }
@@ -58,7 +58,7 @@ inplace transformation rules insert_mutated_variants {
 	 ("break")
 	 ("insert_variants") as nextiv
       )
-      { nextiv.variants = iv.variants; };
+      { nextiv.variants = iv.variants; }
    ("compound_statement" stmts...  ("insert_variants") as iv)
 	 where len(iv.variants) == 1 ->
       { iv.block = pop(iv.variants); assert(iv.block); iv.id = iv.block.id; }
@@ -68,7 +68,7 @@ inplace transformation rules insert_mutated_variants {
 	    ("compound_statement" { iv.block })
 	 )
 	 ("break")
-      );
+      )
 }
 
 attribution rules mutate_functions {
@@ -82,7 +82,7 @@ attribution rules mutate_functions {
 	 variant.id = ++root.variant_count;
       }
       while (insert_mutated_variants(fdef)) {};
-   };
+   }
 }
 
 /* clone & transform _troot_ where _trules_ provides the mutation rules

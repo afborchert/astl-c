@@ -1,8 +1,6 @@
 #!../../astl-c/astl-c
 
-sub descend {
-   var nestlevel = args[0];
-   var node = args[1];
+sub descend(nestlevel, node) {
    var result = "";
    if (isoperator(node)) {
       result = " " x nestlevel & "(\"" & operator(node) & "\"";
@@ -14,12 +12,13 @@ sub descend {
       } else {
 	 result = result & ")";
       }
+      result = result & " @" & location(node);
    } else {
       result = " " x nestlevel & tokenliteral(node);
    }
    return result;
-};
+}
 
 sub main {
    println(descend(0, root));
-};
+}

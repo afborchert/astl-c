@@ -22,8 +22,8 @@ a tree expression:
 attribution rules {
    ("if" cond then ("if" cond2 then2)) as if_stmt -> {
       println("if-else-chain without final else at ", location(if_stmt));
-   };
-};
+   }
+}
 ```
 
 So-called attribution rules consist of a collection of

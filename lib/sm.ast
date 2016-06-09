@@ -152,14 +152,14 @@ sub print_path(path) {
 }
 
 abstract state machine local {
-   at actual_call if extern -> cut;
-   at exit -> cut;
+   at actual_call if extern -> cut
+   at exit -> cut
 }
 
 abstract state machine global {
    private var chain = {nestlevel -> 0};
    at actual_call
-      if local -> cut;
+      if local -> cut
       if extern -> cache(node.branch.local) {
 	 chain = {
 	    nestlevel -> chain.nestlevel + 1,
@@ -167,7 +167,7 @@ abstract state machine global {
 	    callid -> node.callid
 	 };
       }
-   at rtn where chain.nestlevel == 0 || chain.callid != node.callid -> retract;
+   at rtn where chain.nestlevel == 0 || chain.callid != node.callid -> retract
    at rtn where chain.nestlevel > 0 && chain.callid == node.callid -> {
       chain = chain.next;
    }
@@ -244,5 +244,5 @@ abstract state machine local_variable: local_tracker {
       vartype = node.vartype;
       block = b;
    }
-   at close_block where node.astnode == block -> close;
+   at close_block where node.astnode == block -> close
 }

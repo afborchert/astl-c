@@ -496,7 +496,7 @@ restart:
  *  - pos gets updated (
  */
 void Scanner::nextch() {
-   tokenloc.end = pos;
+   tokenloc.end = oldpos;
    oldpos = pos;
    if (eof) {
       ch = 0; return;

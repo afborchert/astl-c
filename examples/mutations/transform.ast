@@ -5,9 +5,9 @@ import mutations;
 import ops;
 
 transformation rules mutations {
-   minus_to_plus: ("-" leftop rightop) -> ("+" rightop leftop);
-   ne_to_eq: ("!=" leftop rightop) -> ("==" rightop leftop);
-   ass_to_incr: ("=" lvalue rvalue) -> ("+=" lvalue rvalue);
+   minus_to_plus: ("-" leftop rightop) -> ("+" rightop leftop)
+   ne_to_eq: ("!=" leftop rightop) -> ("==" rightop leftop)
+   ass_to_incr: ("=" lvalue rvalue) -> ("+=" lvalue rvalue)
 }
 
 sub main {

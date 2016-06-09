@@ -75,7 +75,7 @@ attribution rules tag_parameters {
 	    ident.declared = false;
 	    param.t = get_int_type();
 	 }
-      };
+      }
 }
 
 attribution rules standardize_krstyle {
@@ -97,7 +97,7 @@ attribution rules standardize_krstyle {
 	 edecl.param_index{param.name} = index;
 	 ++index;
       }
-   };
+   }
    ("declarator" *) as declarator
 	 in ("declaration" specifiers here1) as declaration and
 	 in ("function_definition" fdecl here2 compound_statement) as fdef and
@@ -107,10 +107,10 @@ attribution rules standardize_krstyle {
 	 edecl.parameters[index].declarator = {
 	    specifiers -> specifiers,
 	    declarator -> declarator
-	 };
+	 }
 	 edecl.parameters[index].t = declaration.t;
       }
-   };
+   }
    ("external_declaration"
 	 ("function_definition" declarator declaration_list compound_statement)
 	    as fdef) as edecl -> post {
@@ -120,5 +120,5 @@ attribution rules standardize_krstyle {
       foreach obj in (declarator.objects) {
 	 delete obj.t.krstyle;
       }
-   };
+   }
 }

@@ -8,9 +8,7 @@
    Rule: Data objects must be declared at the smallest possible
    level of scope.
 */
-sub common_parent {
-   var block1 = args[0];
-   var block2 = args[1];
+sub common_parent(block1, block2) {
    while (block1 != block2) {
       if (block1.level >= block2.level) {
 	 block1 = block1.up;
@@ -27,12 +25,12 @@ attribution rules {
       block.vars = {};
       block.level = 0;
       block.up = null;
-   };
+   }
    ("compound_statement" *) as inner_block
          in ("compound_statement" *) as outer_block -> {
       inner_block.level = outer_block.level + 1;
       inner_block.up = outer_block;
-   };
+   }
    // declarating an identifier
    ("direct_declarator" ("identifier" id)) as declarator
          in ("compound_statement" *) as block -> {
@@ -42,7 +40,7 @@ attribution rules {
 	 minlevel -> -1,
 	 minblock -> null,
       };
-   };
+   }
    // using an identifier in an expression
    ("identifier" id) in ("expression" *) as expr and 
          in ("compound_statement" *) as block -> {
@@ -66,7 +64,7 @@ attribution rules {
 	    entry.used = true;
 	 }
       }
-   };
+   }
    // check usage of all variables of this block
    ("compound_statement" *) as block -> post {
       foreach varname in (block.vars) {
@@ -80,5 +78,5 @@ attribution rules {
 	    println(location(entry.decl) & ": unused variable " & varname);
 	 }
       }
-   };
-};
+   }
+}

@@ -60,4 +60,4 @@ operators {
    left "postfix++" "postfix--" "function_call"
 	 "->" "." "[]";
    nonassoc "label_as_value";
-};
+}
