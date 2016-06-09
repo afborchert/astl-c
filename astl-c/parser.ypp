@@ -35,8 +35,9 @@ namespace AstlC {
 
 using namespace Astl;
 
-/* since bison 3.x it is no longer yyloc but yyla.location... */
-#define YYLLOC (yyla.location)
+/* location which is computed by the YYLLOC_DEFAULT macro
+   in case of a reduce before the corresponding action is executed */
+#define YYLLOC (yylhs.location)
 
 #define NODE(op) \
    (std::make_shared<Node>(make_loc(YYLLOC), Op::op))
