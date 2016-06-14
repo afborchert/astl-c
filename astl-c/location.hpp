@@ -16,8 +16,8 @@
    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
-#ifndef C_LOCATION_H
-#define C_LOCATION_H
+#ifndef ASTL_C_LOCATION_H
+#define ASTL_C_LOCATION_H
 
 #include <astl/treeloc.hpp>
 #include "position.hh"

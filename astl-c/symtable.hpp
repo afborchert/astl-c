@@ -16,8 +16,8 @@
    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
-#ifndef C_SYMTABLE_H
-#define C_SYMTABLE_H
+#ifndef ASTL_C_SYMTABLE_H
+#define ASTL_C_SYMTABLE_H
 
 #include <cassert>
 #include <string>

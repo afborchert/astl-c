@@ -16,8 +16,8 @@
    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
-#ifndef C_ERROR_H
-#define C_ERROR_H
+#ifndef ASTL_C_ERROR_H
+#define ASTL_C_ERROR_H
 
 #include "parser.hpp"
 #include "location.hpp"

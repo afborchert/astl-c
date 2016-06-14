@@ -16,8 +16,8 @@
    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
-#ifndef C_KEYWORDS_H
-#define C_KEYWORDS_H
+#ifndef ASTL_C_KEYWORDS_H
+#define ASTL_C_KEYWORDS_H
 
 #include <map>
 #include <string>

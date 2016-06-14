@@ -16,8 +16,8 @@
    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
-#ifndef C_PARSER_H
-#define C_PARSER_H
+#ifndef ASTL_C_PARSER_H
+#define ASTL_C_PARSER_H
 
 namespace AstlC {
 

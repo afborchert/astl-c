@@ -16,8 +16,8 @@
    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
-#ifndef ASTLC_YYSTYPE_H
-#define ASTLC_YYSTYPE_H
+#ifndef ASTL_C_YYSTYPE_H
+#define ASTL_C_YYSTYPE_H
 
 #include <astl/syntax-tree.hpp>
 

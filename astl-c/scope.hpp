@@ -16,8 +16,8 @@
    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
-#ifndef C_SCOPE_H
-#define C_SCOPE_H
+#ifndef ASTL_C_SCOPE_H
+#define ASTL_C_SCOPE_H
 
 #include <string>
 #include <map>
