@@ -6,7 +6,7 @@
    License as published by the Free Software Foundation; either version
    2 of the License, or (at your option) any later version.
 
-   The Astl Library for C is distributed in the hope that it will be
+   Astl-C is distributed in the hope that it will be
    useful, but WITHOUT ANY WARRANTY; without even the implied warranty
    of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
    Library General Public License for more details.
@@ -20,10 +20,10 @@
 #define ASTL_C_SYMTABLE_H
 
 #include <cassert>
-#include <string>
 #include <map>
-#include "symbol.hpp"
+#include <string>
 #include "scope.hpp"
+#include "symbol.hpp"
 
 namespace AstlC {
 
@@ -33,7 +33,10 @@ namespace AstlC {
 
       public:
 	 // constructors
-	 SymTable() : scope(0) {
+	 SymTable() : scope(nullptr) {
+	 }
+	 ~SymTable() {
+	    while (scope) close();
 	 }
 
 	 // accessors
@@ -47,8 +50,7 @@ namespace AstlC {
 
 	 // mutators
 	 void open() {
-	    Scope* inner = new Scope(scope);
-	    scope = inner;
+	    scope = new Scope(scope);
 	 }
 	 void close() {
 	    assert(scope);

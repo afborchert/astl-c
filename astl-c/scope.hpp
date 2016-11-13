@@ -6,7 +6,7 @@
    License as published by the Free Software Foundation; either version
    2 of the License, or (at your option) any later version.
 
-   The Astl Library for C is distributed in the hope that it will be
+   Astl-C is distributed in the hope that it will be
    useful, but WITHOUT ANY WARRANTY; without even the implied warranty
    of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
    Library General Public License for more details.
@@ -19,8 +19,8 @@
 #ifndef ASTL_C_SCOPE_H
 #define ASTL_C_SCOPE_H
 
-#include <string>
 #include <map>
+#include <string>
 #include "symbol.hpp"
 
 namespace AstlC {
@@ -30,16 +30,17 @@ namespace AstlC {
 	 typedef std::map<std::string, Symbol> SymMap;
 	 SymMap symbols;
 	 Scope* outer;
+
       public:
 	 // constructors
-	 Scope() : outer(0) {
+	 Scope() : outer(nullptr) {
 	 }
 	 Scope(Scope* outer_param) : outer(outer_param) {
 	 }
 
 	 // accessors
 	 bool lookup(const std::string& name, Symbol& symbol) const {
-	    SymMap::const_iterator it = symbols.find(name);
+	    auto it = symbols.find(name);
 	    if (it == symbols.end()) {
 	       if (outer) {
 		  return outer->lookup(name, symbol);
@@ -58,7 +59,7 @@ namespace AstlC {
 
 	 // mutators
 	 bool insert(const Symbol& symbol) {
-	    std::pair<SymMap::iterator, bool> result =
+	    auto result =
 	       symbols.insert(SymMap::value_type(symbol.get_name(), symbol));
 	    return result.second;
 	 }

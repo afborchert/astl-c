@@ -6,7 +6,7 @@
    License as published by the Free Software Foundation; either version
    2 of the License, or (at your option) any later version.
 
-   The Astl Library for C is distributed in the hope that it will be
+   Astl-C is distributed in the hope that it will be
    useful, but WITHOUT ANY WARRANTY; without even the implied warranty
    of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
    Library General Public License for more details.
@@ -268,6 +268,7 @@ declaration_list: declaration
    | declaration_list extended_declaration
       { $$ = BINARY(declaration_list, $1, $2); }
    ;
+
 primary_expression: identifier
    | constant
    | string_literal
@@ -286,6 +287,7 @@ builtin_offsetof: BUILTIN_OFFSETOF LPAREN
 	 type_name COMMA offsetof_member_designator RPAREN
       { $$ = BINARY(builtin_offsetof, $3, $5); }
    ;
+
 offsetof_member_designator: name
    | offsetof_member_designator DOT name
       { $$ = BINARY(DOT, $1, $3); }
@@ -360,6 +362,7 @@ postfix_expression: primary_expression
 postfix_plusplus: postfix_expression PLUSPLUS
       { $$ = UNARY(postfix_plusplus, $1); }
    ;
+
 postfix_minusminus: postfix_expression MINUSMINUS
       { $$ = UNARY(postfix_minusminus, $1); }
    ;
@@ -401,15 +404,19 @@ address_of: AMPERSAND cast_expression
 prefix_plusplus: PLUSPLUS unary_expression
       { $$ = UNARY(prefix_plusplus, $2); }
    ;
+
 prefix_minusminus: MINUSMINUS unary_expression
       { $$ = UNARY(prefix_minusminus, $2); }
    ;
+
 unary_plus: PLUS cast_expression
       { $$ = UNARY(unary_plus, $2); }
    ;
+
 unary_minus: MINUS cast_expression
       { $$ = UNARY(unary_minus, $2); }
    ;
+
 pointer_dereference: STAR cast_expression
       { $$ = UNARY(pointer_dereference, $2); }
    ;
@@ -433,6 +440,7 @@ argument_expression_list: assignment_expression
    | argument_expression_list COMMA assignment_expression
       { $$ = BINARY(argument_expression_list, $1, $3); }
    ;
+
 assignment_expression: conditional_expression
     | unary_expression EQ assignment_expression
       { $$ = BINARY(EQ, $1, $3); }
@@ -466,6 +474,7 @@ condition: expression
 expression: embedded_expression
       { $$ = UNARY(expression, $1); }
    ;
+
 embedded_expression: assignment_expression
    | expression COMMA assignment_expression
       { $$ = BINARY(COMMA, $1, $3); }
@@ -491,12 +500,14 @@ initializer_list: initializer
    | initializer_list COMMA designation initializer
       { $$ = TERTIARY(initializer_list, $1, $3, $4); }
    ;
+
 designation: designator_list EQ
       { $$ = UNARY(designation, $1); }
    /* old gcc syntax, obsolete since gcc 2.5 but still in use */
    | name COLON
       { $$ = UNARY(designation, UNARY(DOT, $1)); }
    ;
+
 designator_list: LBRACKET constant_expression RBRACKET
       { $$ = UNARY(LBRACKET, $2); }
    | DOT name
@@ -519,6 +530,7 @@ designated_range: LBRACKET constant_expression
 
 constant_expression: conditional_expression
    ;
+
 conditional_expression: logical_or_expression
    | logical_or_expression QMARK embedded_expression COLON conditional_expression
       { $$ = TERTIARY(conditional_expression, $1, $3, $5); }
@@ -526,32 +538,39 @@ conditional_expression: logical_or_expression
    | logical_or_expression QMARK COLON conditional_expression
       { $$ = BINARY(conditional_expression, $1, $4); }
    ;
+
 logical_or_expression: logical_and_expression
    | logical_or_expression OR logical_and_expression
       { $$ = BINARY(OR, $1, $3); }
    ;
+
 logical_and_expression: inclusive_or_expression
    | logical_and_expression AND inclusive_or_expression
       { $$ = BINARY(AND, $1, $3); }
    ;
+
 inclusive_or_expression: exclusive_or_expression
    | inclusive_or_expression BAR exclusive_or_expression
       { $$ = BINARY(BAR, $1, $3); }
    ;
+
 exclusive_or_expression: and_expression
    | exclusive_or_expression CARET and_expression
       { $$ = BINARY(CARET, $1, $3); }
    ;
+
 and_expression: equality_expression
    | and_expression AMPERSAND equality_expression
       { $$ = BINARY(AMPERSAND, $1, $3); }
    ;
+
 equality_expression: relational_expression
    | equality_expression EQEQ relational_expression
       { $$ = BINARY(EQEQ, $1, $3); }
    | equality_expression NE relational_expression
       { $$ = BINARY(NE, $1, $3); }
    ;
+
 relational_expression: shift_expression
    | relational_expression LT shift_expression
       { $$ = BINARY(LT, $1, $3); }
@@ -562,12 +581,14 @@ relational_expression: shift_expression
    | relational_expression GE shift_expression
       { $$ = BINARY(GE, $1, $3); }
    ;
+
 shift_expression: additive_expression
    | shift_expression LTLT additive_expression
       { $$ = BINARY(LTLT, $1, $3); }
    | shift_expression GTGT additive_expression
       { $$ = BINARY(GTGT, $1, $3); }
    ;
+
 additive_expression: multiplicative_expression
    | additive_expression PLUS multiplicative_expression
       { $$ = BINARY(PLUS, $1, $3); }
@@ -584,6 +605,7 @@ assembler_instructions: ASM LPAREN assembler_spec RPAREN
    | ASM GOTO LPAREN asm_goto_spec RPAREN
       { $$ = BINARY(assembler_instructions, NODE(GOTO), $4); }
    ;
+
 assembler_spec: string_literal
       { $$ = UNARY(assembler_spec, $1); }
    | string_literal COLON asm_operands
@@ -885,9 +907,11 @@ struct_or_union_specifier_with_attributes:
 struct_name: name
       { $$ = UNARY(struct_name, $1); }
    ;   
+
 union_name: name
       { $$ = UNARY(union_name, $1); }
    ;   
+
 enum_specifier: ENUM LBRACE enumerator_list RBRACE
       { $$ = UNARY(ENUM, $3); }
    | ENUM enum_name LBRACE enumerator_list RBRACE
@@ -968,6 +992,7 @@ relaxed_specifier_qualifier_list: type_specifier
    | type_qualifier relaxed_specifier_qualifier_list
       { $$ = BINARY(specifier_qualifier_list, $1, $2); }
    ;
+
 /* restricted specifier qualifier list that does not permit
    any type specifiers */
 restricted_specifier_qualifier_list: type_qualifier
@@ -995,11 +1020,13 @@ enumerator_list: enumerator
    | enumerator_list COMMA enumerator
       { $$ = BINARY(enumerator_list, $1, $3); }
    ;
+
 enumerator: enumeration_constant
       { $$ = UNARY(enumerator, $1); }
    | enumeration_constant EQ constant_expression
       { $$ = BINARY(enumerator, $1, $3);}
    ;
+
 enumeration_constant: identifier;
 
 init_declarator_list: init_declarator
@@ -1007,6 +1034,7 @@ init_declarator_list: init_declarator
    | init_declarator_list COMMA extended_init_declarator
       { $$ = BINARY(init_declarator_list, $1, $3); }
    ;
+
 init_declarator: declarator
       { $$ = UNARY(init_declarator, $1); }
    | declarator EQ initializer
@@ -1274,11 +1302,13 @@ parameter_type_list: parameter_list
    | parameter_list COMMA DOTS
       { $$ = BINARY(parameter_type_list, $1, NODE(DOTS)); }
    ;
+
 parameter_list: parameter_declaration
       { $$ = UNARY(parameter_list, $1); }
    | parameter_list COMMA parameter_declaration
       { $$ = BINARY(parameter_list, $1, $3); }
    ;
+
 /* to avoid a conflict between abstract_declarator and
    and declarator (see comment at declarator above)
    we use restricted_declarator here
@@ -1293,6 +1323,7 @@ parameter_declaration: extended_declaration_specifiers restricted_declarator
    | extended_declaration_specifiers abstract_declarator
      { $$ = BINARY(parameter_declaration, $1, $2); }
    ;
+
 abstract_declarator: pointer
       { $$ = UNARY(abstract_declarator, $1); }
    | direct_abstract_declarator
@@ -1300,6 +1331,7 @@ abstract_declarator: pointer
    | pointer direct_abstract_declarator
       { $$ = BINARY(abstract_declarator, $1, $2); }
    ;
+
 direct_abstract_declarator: LPAREN abstract_declarator RPAREN
       { $$ = UNARY(direct_abstract_declarator, UNARY(LPAREN, $2)); }
    | LBRACKET RBRACKET
@@ -1326,6 +1358,7 @@ direct_abstract_declarator: LPAREN abstract_declarator RPAREN
    | direct_abstract_declarator LPAREN parameter_type_list RPAREN
       { $$ = BINARY(direct_abstract_declarator, $1, UNARY(LPAREN, $3)); }
    ;
+
 identifier_list: identifier
       { $$ = UNARY(identifier_list, $1); }
    | identifier_list COMMA identifier
@@ -1379,14 +1412,17 @@ compound_statement: LBRACE RBRACE
 	 symtab.close();
       }
    ;
+
 block_item_list: block_item
    | block_item_list block_item
       { $$ = BINARY(block_item_list, $1, $2); }
    ;
+
 block_item: extended_declaration
    | statement
    | std_function_definition // GCC extension for local functions
    ;
+
 expression_statement: SEMICOLON
       { $$ = NODE(expression_statement); }
    | expression SEMICOLON
@@ -1398,6 +1434,7 @@ if_statement: IF LPAREN condition RPAREN statement
    | IF LPAREN condition RPAREN statement ELSE statement
       { $$ = TERTIARY(IF, $3, $5, $7); }
    ;
+
 switch_statement: SWITCH LPAREN expression RPAREN statement
       { $$ = BINARY(SWITCH, $3, $5); }
    ;
