@@ -111,6 +111,7 @@ state machine localptr: local_tracker (
       when initializing -> nonnull
       when seeing_nullptr -> isnull
       when invoking_malloc -> welldefined
+   ("address_of" ("identifier" varname)) in ("function_call" *) -> nonnull
 
    /* track invocations of free/cfree where our pointer variable
       is given */
