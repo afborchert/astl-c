@@ -570,6 +570,9 @@ attribution rules {
    ("initializer" ("expression" *) as expr) as stmt -> post {
       wrap_node(stmt, expr);
    }
+   ("initializer" ("initializer_list" *) as list) as stmt -> post {
+      wrap_node(stmt, list);
+   }
    ("initializer_list" initializer) as stmt -> post {
       wrap_node(stmt, initializer);
    }
