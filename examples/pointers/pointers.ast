@@ -105,8 +105,9 @@ state machine localptr: local_tracker (
    ("=" lvalue rvalue) at assignment_begin
       where exists node.object && object == node.object -> initializing
    at * where exists node.astnode.nullptr when initializing -> seeing_nullptr
-   ("function_call" ("identifier" m{^[mc]alloc$}) args...)
+   ("function_call" ("identifier" m{^(?:re|m|c)alloc$}) args...)
       when initializing or seeing_nullptr -> invoking_malloc
+   ("address_of" *) when initializing or seeing_nullptr -> nonnull
    at varinit_end or assignment_end
       when initializing -> nonnull
       when seeing_nullptr -> isnull
@@ -119,11 +120,11 @@ state machine localptr: local_tracker (
       ("argument_expression_list" ("identifier" varname) as id)) at call
 	 where exists id.object && id.object == object
 	 when welldefined or nonnull -> freed
-	 when freed -> {
-	    err("freeing an already freed pointer");
+	 when freed -> cut {
+	    err(varname, ": freeing an already freed pointer");
 	 }
-	 when undefined -> {
-	    err("freeing an undefined pointer");
+	 when undefined -> cut {
+	    err(varname, ": freeing an undefined pointer");
 	 }
 
    /* track when our pointer is tested against NULL,
@@ -149,23 +150,27 @@ state machine localptr: local_tracker (
    /* track when our pointer is dereferenced */
    ("pointer_dereference" ("identifier" varname) as id)
       where exists id.object && id.object == object
-      when undefined -> { err("dereferencing undefined pointer"); }
-      when welldefined -> {
-	 err("dereferenced pointer has not been tested against 0");
+      when undefined -> cut {
+	 err(varname, ": dereferencing undefined pointer");
       }
-      when freed -> {
-	 err("dereferencing an already freed pointer");
+      when welldefined -> cut {
+	 err(varname, ": dereferenced pointer has not been tested against 0");
       }
-      when isnull -> {
-	 err("dereferenced pointer is 0");
+      when freed -> cut {
+	 err(varname, ": dereferencing an already freed pointer");
+      }
+      when isnull -> cut {
+	 err(varname, ": dereferenced pointer is 0");
       }
    /* check other pointer usages */
-   ("identifier" varname) as id in ([assignment_operators] lvalue here)
+   ("identifier" varname) as id
+	 in ([assignment_operators] lvalue here) as stmt
+	 and ! in ("address_of" *)
       where exists id.object && id.object == object
-      when undefined -> {
-	 err("assigning an undefined pointer");
+      when undefined -> cut {
+	 err(varname, ": using an undefined pointer in ", gentext(stmt));
       }
-      when freed -> {
-	 err("assigning a freed pointer");
+      when freed -> cut {
+	 err(varname, ": assigning a freed pointer");
       }
 }
