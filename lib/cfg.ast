@@ -192,7 +192,7 @@ sub connect_false(ast, tree1, tree2) {
 
 sub check_astnode(tree) {
    if (!exists tree.entry || !tree.entry) {
-      println("Error: no entry defined for operator ", operator(tree),
+      println("Error: no entry defined in cfg for operator ", operator(tree),
 	 " with ", len(tree), " operands in ", location(tree), ":");
       println(gentext(tree));
    }
@@ -261,22 +261,28 @@ sub function_call {
    }
    var before_call = cfg_node("call", stmt); init_node(before_call);
    var call = cfg_node("actual_call", stmt); init_node(call);
-   var rtn = cfg_node("rtn", stmt); init_node(rtn);
+   var rtn;
+   var noreturn = exists graph.exit_functions{id};
+   rtn = cfg_node("rtn", stmt); init_node(rtn);
    call.hidden = true; rtn.hidden = true;
    var callid = graph.callid++; call.callid = callid; rtn.callid = callid;
    if (defined(arguments)) {
       connect(arguments, before_call);
    }
    cfg_connect(before_call, call);
-   cfg_connect(call, rtn, "local");
-   if (exists graph.entries{id}) {
-      cfg_connect(call, graph.entries{id}, "extern");
-      cfg_connect(graph.exits{id}, rtn);
+   if (noreturn) {
+      cfg_connect(call, rtn, "noreturn");
    } else {
-      if (!exists graph.unresolved{id}) {
-	 graph.unresolved{id} = [];
+      cfg_connect(call, rtn, "local");
+      if (exists graph.entries{id}) {
+	 cfg_connect(call, graph.entries{id}, "extern");
+	 cfg_connect(graph.exits{id}, rtn);
+      } else {
+	 if (!exists graph.unresolved{id}) {
+	    graph.unresolved{id} = [];
+	 }
+	 push(graph.unresolved{id}, {call -> call, rtn -> rtn});
       }
-      push(graph.unresolved{id}, {call -> call, rtn -> rtn});
    }
    if (defined(arguments)) {
       stmt.entry = arguments.entry;
@@ -295,6 +301,15 @@ attribution rules {
       graph.unresolved = {};
       graph.counter = 0;
       graph.callid = 0;
+      graph.exit_functions = {};
+      var exit_functions = [
+	 "abort",
+	 "__assert_c99", // actual abortion route for assert (gcc)
+	 "exit", "_exit", "_Exit"
+      ];
+      foreach exit_function in (exit_functions) {
+	 graph.exit_functions{exit_function} = 1;
+      }
    }
    ("translation_unit" *) -> post {
       if (exists graph.entries.main) {
@@ -398,6 +413,9 @@ attribution rules {
    ("identifier" id) as stmt -> post {
       terminal(stmt);
    }
+   ("designation" *) as designation -> post {
+      terminal(designation);
+   }
    // unary operators
    ("prefix--" a) as stmt -> post {
       unary_operator(stmt, a);
@@ -433,7 +451,7 @@ attribution rules {
       terminal(stmt);
    }
    ("sizeof" a) as stmt where operator(a) != "type_name" -> post {
-      unary_operator(stmt, a);
+      terminal(stmt); /* the operand is not evaluated */
    }
    ("cast_expression" t e) as stmt -> post {
       unary_operator(stmt, e);
@@ -580,6 +598,16 @@ attribution rules {
       check_astnode(initializer_list);
       check_astnode(initializer);
       connect(initializer_list, initializer);
+      stmt.entry = initializer_list.entry;
+      stmt.exits = initializer.exits;
+   }
+   ("initializer_list" initializer_list designation initializer)
+	 as stmt -> post {
+      check_astnode(initializer_list);
+      check_astnode(designation);
+      check_astnode(initializer);
+      connect(initializer_list, designation);
+      connect(designation, initializer);
       stmt.entry = initializer_list.entry;
       stmt.exits = initializer.exits;
    }
@@ -810,6 +838,10 @@ attribution rules {
       var unreachable = cfg_node(stmt); init_node(stmt);
       stmt.entry = unreachable;
       stmt.exits = [];
+   }
+   // gcc extension for local functions
+   ("function_definition" *) as decl in ("function_definition" *) -> post {
+      terminal(decl);
    }
    // function declarations
    ("function_definition" declaration block) as fdef -> pre {
