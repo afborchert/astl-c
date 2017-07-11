@@ -107,6 +107,7 @@ state machine localptr: local_tracker (
    at * where exists node.astnode.nullptr when initializing -> seeing_nullptr
    ("function_call" ("identifier" m{^(?:re|m|c)alloc$}) args...)
       when initializing or seeing_nullptr -> invoking_malloc
+   ("function_call" *) when seeing_nullptr -> initializing
    ("address_of" *) when initializing or seeing_nullptr -> nonnull
    at varinit_end or assignment_end
       when initializing -> nonnull
