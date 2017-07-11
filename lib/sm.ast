@@ -152,7 +152,9 @@ sub print_path(path) {
 }
 
 abstract state machine local {
-   at actual_call if extern -> cut
+   at actual_call
+      if extern -> cut
+      if noreturn -> close
    at exit -> cut
 }
 
@@ -167,6 +169,7 @@ abstract state machine global {
 	    callid -> node.callid
 	 };
       }
+      if noreturn -> close
    at rtn where chain.nestlevel == 0 || chain.callid != node.callid -> retract
    at rtn where chain.nestlevel > 0 && chain.callid == node.callid -> {
       chain = chain.next;
