@@ -1,5 +1,5 @@
 /*
-   Copyright (C) 2010, 2011, 2016 Andreas Franz Borchert and Yan Wang
+   Copyright (C) 2010, 2011, 2016, 2017 Andreas Franz Borchert and Yan Wang
    ----------------------------------------------------------------------------
    The Astl Library for C is free software; you can redistribute it
    and/or modify it under the terms of the GNU Library General Public
@@ -722,12 +722,22 @@ attribution rules {
 // cases with 3 expressions   
    ("for" init cond incr block) as stmt
 	 in ("iteration_statement" *) as outer_stmt -> post {
-      connect_true(stmt, cond, block);
-      stmt.entry = init.entry; connect(init, cond);
-      connect(block, incr);
-      connect_jumps(outer_stmt.continues, incr);
-      connect(incr, cond);
-      stmt.exits = stmt.condexits;
+      if (len(cond) == 0) {
+	 /* empty condition */
+	 stmt.entry = init.entry;
+	 connect(init, block);
+	 connect(block, incr);
+	 connect(incr, block);
+	 connect_jumps(outer_stmt.continues, incr);
+	 stmt.exits = [];
+      } else {
+	 connect_true(stmt, cond, block);
+	 stmt.entry = init.entry; connect(init, cond);
+	 connect(block, incr);
+	 connect_jumps(outer_stmt.continues, incr);
+	 connect(incr, cond);
+	 stmt.exits = stmt.condexits;
+      }
    }
    // if statements
    ("if" cond then) as stmt -> post {
