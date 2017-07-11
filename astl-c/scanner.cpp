@@ -16,6 +16,7 @@
    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
+#include <cassert>
 #include <cwchar>
 #include <locale>
 #include <memory>
@@ -736,7 +737,8 @@ void Scanner::convert_to_utf8() {
       }
       if (!valid) {
 	 /* attempt to convert it into char32_t characters
-	    using the the corresponding facet of the locale of the input stream */
+	    using the the corresponding facet of the locale
+	    of the input stream */
 	 using codecvt = std::codecvt<char32_t, char, std::mbstate_t>;
 	 auto locale = in.getloc();
 	 if (std::has_facet<codecvt>(locale)) {
@@ -748,16 +750,25 @@ void Scanner::convert_to_utf8() {
 	       &(*tokenstr)[0], &(*tokenstr)[tokenstr->size()], from_next,
 	       &str32[0], &str32[str32.size()], to_next);
 	    if (result == std::codecvt_base::ok) {
+	       assert(to_next >= &str32[0]);
+	       str32.resize(to_next - &str32[0]);
 	       /* store utf8 conversion back in tokenstr */
 	       tokenstr->clear();
 	       for (auto codepoint: str32) {
 		  add_codepoint(*tokenstr, codepoint);
 	       }
-	    } else {
-	       error("unable to convert input to utf8");
+	       valid = true;
 	    }
-	 } else {
-	    error("unable to convert input to utf8");
+	 }
+	 /* as a last resort we assume ISO-8859-1 and do
+	    the conversion ourselves */
+	 if (!valid) {
+	    std::string copy(*tokenstr);
+	    tokenstr->clear();
+	    for (auto ch: copy) {
+	       char32_t codepoint = static_cast<unsigned char>(ch);
+	       add_codepoint(*tokenstr, codepoint);
+	    }
 	 }
       }
    }
