@@ -56,6 +56,7 @@ namespace AstlC {
 	 void parse_character_constant();
 	 void parse_string_constant();
 	 void parse_directive();
+	 void convert_to_utf8();
    };
 
    inline int yylex(semantic_type* yylval, location* yylloc, Scanner& scanner) {

@@ -19,6 +19,8 @@
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
+#include <locale>
+#include <stdexcept>
 #include <astl/token.hpp>
 #include "location.hpp"
 #include "parser.hpp"
@@ -26,38 +28,46 @@
 #include "symtable.hpp"
 #include "yytname.hpp"
 
-using namespace std;
 using namespace Astl;
 using namespace AstlC;
 
 int main(int argc, char** argv) {
    char* cmdname = *argv++; --argc;
    if (argc > 1) {
-      cerr << "Usage: " << cmdname << " [filename]" << endl;
+      std::cerr << "Usage: " << cmdname << " [filename]" << std::endl;
       exit(1);
+   }
+
+   std::unique_ptr<std::locale> locale = nullptr;
+   try {
+      locale = std::make_unique<std::locale>("");
+   } catch (std::runtime_error) {
+      locale = nullptr;
    }
 
    SymTable symtab;
    Scanner* scanner;
-   ifstream* fin = 0;
+   std::ifstream* fin = 0;
    if (argc > 0) {
       char* fname = *argv++; --argc;
-      fin = new ifstream(fname);
-      string filename(fname);
+      fin = new std::ifstream(fname);
+      std::string filename(fname);
       if (!*fin) {
-	 cerr << cmdname << ": unable to open " << fname <<
-	    " for reading" << endl;
+	 std::cerr << cmdname << ": unable to open " << fname <<
+	    " for reading" << std::endl;
 	 exit(1);
       }
+      if (locale) fin->imbue(*locale);
       scanner = new Scanner(*fin, filename, symtab);
    } else {
-      scanner = new Scanner(cin, "stdin", symtab);
+      if (locale) std::cin.imbue(*locale);
+      scanner = new Scanner(std::cin, "stdin", symtab);
    }
 
    NodePtr root;
    parser p(*scanner, symtab, root);
    if (p.parse() == 0) {
-      cout << root << endl;
+      std::cout << root << std::endl;
    }
    delete scanner;
 }

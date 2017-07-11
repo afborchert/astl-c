@@ -1,5 +1,5 @@
 /*
-   Copyright (C) 2009-2016 Andreas Franz Borchert
+   Copyright (C) 2009-2017 Andreas Franz Borchert
    ----------------------------------------------------------------------------
    Astl-C is free software; you can redistribute it
    and/or modify it under the terms of the GNU Library General Public
@@ -19,6 +19,8 @@
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
+#include <locale>
+#include <stdexcept>
 #include <astl/token.hpp>
 #include "location.hpp"
 #include "parser.hpp"
@@ -37,6 +39,13 @@ int main(int argc, char** argv) {
       exit(1);
    }
 
+   std::unique_ptr<std::locale> locale = nullptr;
+   try {
+      locale = std::make_unique<std::locale>("");
+   } catch (std::runtime_error) {
+      locale = nullptr;
+   }
+
    Scanner* scanner;
    SymTable symtab;
    ifstream* fin = 0;
@@ -49,8 +58,10 @@ int main(int argc, char** argv) {
 	    " for reading" << endl;
 	 exit(1);
       }
+      if (locale) fin->imbue(*locale);
       scanner = new Scanner(*fin, filename, symtab);
    } else {
+      if (locale) std::cin.imbue(*locale);
       scanner = new Scanner(cin, "stdin", symtab);
    }
    AstlC::location loc;

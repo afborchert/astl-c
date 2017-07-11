@@ -119,6 +119,14 @@ class SyntaxTreeGeneratorForC: public SyntaxTreeGenerator {
 	       throw Exception(os.str());
 	    }
 
+	    /* accept locale from environment if it works out */
+	    std::unique_ptr<std::locale> locale = nullptr;
+	    try {
+	       locale = std::make_unique<std::locale>("");
+	    } catch (std::runtime_error) {
+	       locale = nullptr;
+	    }
+	    if (locale) source.imbue(*locale);
 	    /* run the output of the preprocessor through our scanner ... */
 	    Scanner scanner(source, source_name, symtab);
 	    /* ... and parse it */

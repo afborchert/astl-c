@@ -1,5 +1,5 @@
 /*
-   Copyright (C) 2009-2016 Andreas Franz Borchert
+   Copyright (C) 2009-2017 Andreas Franz Borchert
    ----------------------------------------------------------------------------
    Astl-C is free software; you can redistribute it
    and/or modify it under the terms of the GNU Library General Public
@@ -16,9 +16,12 @@
    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
+#include <cwchar>
+#include <locale>
 #include <memory>
 #include <astl/syntax-tree.hpp>
 #include <astl/token.hpp>
+#include <astl/utf8.hpp>
 #include "error.hpp"
 #include "keywords.hpp"
 #include "location.hpp"
@@ -85,10 +88,10 @@ restart:
       bool char_or_string_const_possible = ch == 'L';
       nextch();
       if (char_or_string_const_possible && ch == '\'') {
-	 parse_character_constant();
+	 parse_character_constant(); convert_to_utf8();
 	 token = parser::token::CHAR_CONSTANT;
       } else if (char_or_string_const_possible && ch == '"') {
-	 parse_string_constant();
+	 parse_string_constant(); convert_to_utf8();
 	 token = parser::token::STRING_LITERAL;
       } else {
 	 while (is_letter(ch) || is_digit(ch)) {
@@ -269,14 +272,14 @@ restart:
 	    goto restart;
 	 case '\'':
 	    tokenstr = std::make_unique<std::string>();
-	    parse_character_constant();
+	    parse_character_constant(); convert_to_utf8();
 	    token = parser::token::CHAR_CONSTANT;
 	    yylval = std::make_shared<Node>(make_loc(tokenloc),
 	       Token(token, std::move(tokenstr)));
 	    break;
 	 case '"':
 	    tokenstr = std::make_unique<std::string>();
-	    parse_string_constant();
+	    parse_string_constant(); convert_to_utf8();
 	    token = parser::token::STRING_LITERAL;
 	    yylval = std::make_shared<Node>(make_loc(tokenloc),
 	       Token(token, std::move(tokenstr)));
@@ -709,6 +712,54 @@ void Scanner::parse_directive() {
       pos.line = line;
    } else if (ch != '\n') {
       error("broken preprocessor directive");
+   }
+}
+
+/* convert tokenstr to utf8, if necessary;
+   we need this as the Astl printing engine assumes
+   all tokens to be encoded in utf8
+   (if the assumption fails an exception is thrown) */
+void Scanner::convert_to_utf8() {
+   if (tokenstr) {
+      /* if the input looks like valid utf8 we accept it unchanged
+	 independent from the input locale */
+      std::size_t len = 0; bool valid = true;
+      try {
+	 #pragma GCC diagnostic push
+	 #pragma GCC diagnostic ignored "-Wunused-variable"
+	 for (auto ch: codepoint_range(*tokenstr)) {
+	    ++len;
+	 }
+	 #pragma GCC diagnostic pop
+      } catch (utf8_error) {
+	 valid = false;
+      }
+      if (!valid) {
+	 /* attempt to convert it into char32_t characters
+	    using the the corresponding facet of the locale of the input stream */
+	 using codecvt = std::codecvt<char32_t, char, std::mbstate_t>;
+	 auto locale = in.getloc();
+	 if (std::has_facet<codecvt>(locale)) {
+	    auto& facet = std::use_facet<codecvt>(locale);
+	    std::u32string str32(tokenstr->size(), U'\0');
+	    std::mbstate_t mb{};
+	    const char* from_next = nullptr; char32_t* to_next = nullptr;
+	    auto result = facet.in(mb,
+	       &(*tokenstr)[0], &(*tokenstr)[tokenstr->size()], from_next,
+	       &str32[0], &str32[str32.size()], to_next);
+	    if (result == std::codecvt_base::ok) {
+	       /* store utf8 conversion back in tokenstr */
+	       tokenstr->clear();
+	       for (auto codepoint: str32) {
+		  add_codepoint(*tokenstr, codepoint);
+	       }
+	    } else {
+	       error("unable to convert input to utf8");
+	    }
+	 } else {
+	    error("unable to convert input to utf8");
+	 }
+      }
    }
 }
 
