@@ -1,5 +1,5 @@
 /*
-   Copyright (C) 2011, 2016 Andreas Franz Borchert
+   Copyright (C) 2011, 2016, 2017 Andreas Franz Borchert
    ----------------------------------------------------------------------------
    The Astl Library for C is free software; you can redistribute it
    and/or modify it under the terms of the GNU Library General Public
@@ -21,7 +21,7 @@ import ops;
 /* Construction of a symbol table for the C programming language */
 
 opset blocks = ["translation_unit" "function_definition" "compound_statement"
-   "struct" "union"
+   "parameter_type_list" "struct" "union"
 ];
 
 /*
@@ -734,7 +734,9 @@ attribution rules {
 
    // initializers
    ("initializer" ("expression" expr)) as initializer -> post {
-      initializer.t = expr.t;
+      if (exists expr.t) {
+	 initializer.t = expr.t;
+      }
    }
 
    (decls *) as decl in (blocks *) as block -> post {
