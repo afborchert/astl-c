@@ -20,7 +20,9 @@ import ops;
 
 /* Construction of a symbol table for the C programming language */
 
-opset blocks = ["translation_unit" "function_definition" "compound_statement"];
+opset blocks = ["translation_unit" "function_definition" "compound_statement"
+   "struct" "union"
+];
 
 /*
    top level type declaration nodes where we have
@@ -916,7 +918,8 @@ attribution rules {
 	 } elsif (name == "__builtin_va_list") {
 	    t = {kind -> "va_list"};
 	 } else {
-	    println("unknown name type identifier: ", gentext(name), " at ", location(name));
+	    println("unknown name type identifier: ", gentext(name),
+	       " at ", location(name));
 	    // assert(t);
 	    t = get_int_type(); // dummy type, FIXME
 	 }
@@ -1409,7 +1412,7 @@ attribution rules {
    ("." value ("identifier" ident)) as expr -> post {
       if (exists value.t && value.t &&
 	    (value.t.kind == "struct" || value.t.kind == "union") &&
-	    exists value.t.members{ident}) {
+	    exists value.t.members && exists value.t.members{ident}) {
 	 expr.t = value.t.members{ident}.t;
       } else {
 	 expr.t = null;
@@ -1419,7 +1422,9 @@ attribution rules {
       if (exists value.t && value.t &&
 	    (value.t.kind == "pointer" || value.t.kind == "array")) {
 	 var t = value.t.rtype;
-	 if (t && (t.kind == "struct" || t.kind == "union")) {
+	 if (t && (t.kind == "struct" || t.kind == "union") &&
+	       /* survive error cases: */
+	       exists t.members && exists t.members{ident}) {
 	    expr.t = t.members{ident}.t;
 	 } else {
 	    expr.t = null;
