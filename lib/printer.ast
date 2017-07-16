@@ -380,9 +380,13 @@ print rules {
    ("init_declarator_list" init_declarator_list init_declarator ) ->
       q{$init_declarator_list, $init_declarator}
 
-// init_declarator doubliziert
+// init_declarator
    ("init_declarator" declarator) -> q{$declarator}
    ("init_declarator" declarator initializer) -> q{$declarator = $initializer}
+   ("init_declarator_with_attributes" declarator attributes) ->
+      q{$declarator $attributes}
+   ("init_declarator_with_attributes" declarator attributes initializer) ->
+      q{$declarator $attributes = $initializer}
 
 // declarator
    ("asm_labeled_declarator" declarator label) -> q{$declarator asm($label)}

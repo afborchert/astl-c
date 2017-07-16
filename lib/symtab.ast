@@ -714,17 +714,34 @@ attribution rules {
       }
       push(decl.objects, obj);
    }
-   ("init_declarator" declarator) as sdecl
-	 in (decls *) as decl -> post {
+   ("init_declarator" declarator) in (decls *) as decl -> post {
       var obj = {astnode -> declarator, t -> declarator.t};
       if (exists declarator.name) {
 	 obj.name = declarator.name;
       }
       push(decl.objects, obj);
    }
-   ("init_declarator" declarator initializer) as sdel
-	 in (decls *) as decl -> post {
+   ("init_declarator" declarator initializer) in (decls *) as decl -> post {
       var obj = {astnode -> declarator, t -> declarator.t};
+      if (exists declarator.name) {
+	 obj.name = declarator.name;
+	 obj.initializer = initializer;
+      }
+      push(decl.objects, obj);
+   }
+   ("init_declarator_with_attributes" declarator atspec)
+	 in (decls *) as decl -> post {
+      var obj = {astnode -> declarator, t -> declarator.t,
+	 attributes -> atspec.attributes};
+      if (exists declarator.name) {
+	 obj.name = declarator.name;
+      }
+      push(decl.objects, obj);
+   }
+   ("init_declarator_with_attributes" declarator attr initializer)
+	 in (decls *) as decl -> post {
+      var obj = {astnode -> declarator, t -> declarator.t,
+	 attributes -> attr.attributes};
       if (exists declarator.name) {
 	 obj.name = declarator.name;
 	 obj.initializer = initializer;
@@ -758,8 +775,13 @@ attribution rules {
 	    if (!exists obj.class) {
 	       if (exists decl.storage_class_specifiers.typedef) {
 		  obj.class = "type";
+	       } elsif (operator(decl) != "parameter_declaration" &&
+		     operator(block) == "function_definition") {
+		  obj.class = "function";
+		  obj.static = exists decl.storage_class_specifiers.static;
 	       } else {
 		  obj.class = "var";
+		  obj.static = exists decl.storage_class_specifiers.static;
 	       }
 	    }
 	    insert_object(block, obj);
@@ -970,6 +992,11 @@ attribution rules {
    ("declarator" direct_declarator) as decl -> post {
       decl.name = direct_declarator.name;
       decl.t = direct_declarator.t;
+   }
+   ("asm_labeled_declarator" declarator asm) as decl -> post {
+      decl.name = declarator.name;
+      decl.t = declarator.t;
+      decl.asm = asm;
    }
    ("declarator_with_attributes" declarator atlist) as decl -> post {
       decl.name = declarator.name;
