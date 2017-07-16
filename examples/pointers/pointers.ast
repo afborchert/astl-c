@@ -14,46 +14,57 @@ import cfg;
 import sm;
 
 /*
-   track null pointers,
-   i.e. recognize "0" or "(void*)0" or other similar casts as null pointer
-   or as possible null pointer
+   track null pointers and other pointer values, i.e.
+    - recognize "0" or "(void*)0" or other similar casts as null pointer
+      or as possible null pointer
+    - recognize invocations of calloc/malloc/realloc as
+      welldefined pointers which are either 0 or non-null
+    - assume that the address operator & delivers a welldefined non-null
+      pointer
 */
 
 attribution rules {
    ("integer_constant" m{^0+[LUlu]*$}) as const -> {
-      const.nullptr = true;
+      const.ptrval = "null";
    }
    ("octal_constant" m{^0+[LUlu]*$}) as const -> {
-      const.nullptr = true;
+      const.ptrval = "null";
    }
    ("hexadecimal_constant" m{^0[xX]0+[LUlu]*$}) as const -> {
-      const.nullptr = true;
+      const.ptrval = "null";
    }
    ("cast_expression" type_name value) as expr -> post {
-      if (exists value.nullptr && exists expr.t &&
+      if (exists value.ptrval && exists expr.t &&
 	    (is_integer(expr.t) || is_pointer(expr.t))) {
-	 expr.nullptr = true;
+	 expr.ptrval = value.ptrval;
       }
    }
    ("," expr1 expr2) as expr -> post {
-      if (exists expr2.nullptr) {
-	 expr.nullptr = true;
+      if (exists expr2.ptrval) {
+	 expr.ptrval = expr2.ptrval;
       }
    }
    ("=" lvalue rvalue) as expr -> post {
-      if (exists rvalue.nullptr) {
-	 expr.nullptr = true;
+      if (exists rvalue.ptrval) {
+	 expr.ptrval = rvalue.ptrval;
       }
    }
    ("expression" e) as expr -> post {
-      if (exists e.nullptr) {
-	 expr.nullptr = true;
+      if (exists e.ptrval) {
+	 expr.ptrval = e.ptrval;
       }
    }
    ("initializer" ("expression" expr)) as initializer -> post {
-      if (exists expr.nullptr) {
-	 initializer.nullptr = true;
+      if (exists expr.ptrval) {
+	 initializer.ptrval = expr.ptrval;
       }
+   }
+   ("function_call" ("identifier" m{^(?:re|m|c)alloc$}) args...)
+	 as expr -> post {
+      expr.ptrval = "welldefined";
+   }
+   ("address_of" *) as expr -> post {
+      expr.ptrval = "nonnull";
    }
 }
 
@@ -63,9 +74,6 @@ attribution rules {
 
 state machine localptr: local_tracker (
       undefined,         /* initial state: value of pointer is undefined */
-      initializing,
-      invoking_malloc,
-      seeing_nullptr,
       welldefined,
       nonnull,
       isnull,
@@ -75,10 +83,14 @@ state machine localptr: local_tracker (
    shared var vartype; /* type of the pointer variable */
    shared var block;   /* block where the variable was declared */
    shared var object;  /* corresponding object in symbol table */
+   private var ptrval; /* short for node.astnode.ptrval */
+   private var update; /* do we need to update state according to ptrval? */
 
    /* create new instance whenever a pointer variable is declared */
    at vardecl
-	 where exists node.block && node.vartype.kind == "pointer" -> create {
+	 where exists node.block &&
+	 !node.object.static &&
+	 node.vartype.kind == "pointer" -> create {
       varname = node.varname;
       vartype = node.vartype;
       object = node.object;
@@ -89,31 +101,24 @@ state machine localptr: local_tracker (
       where this variable was declared */
    at close_block where node.astnode == block -> close
 
-   /* attempt to catch moments where pointers get a value:
-       - within the initializer: varinit_begin and varinit_end
-         mark the beginning and the end of an initializer
-	 within the control flow graph
-       - during an assignment with our variable on the lhs
-
-      we try to make assumptions about the value on the rhs:
-       - when it resembles a null value, we assume it to be NULL
-       - when malloc or calloc is invoked, we assume it to be
-         welldefined with being either NULL or a valid pointer
-       - otherwise we believe it to be non-NULL
-   */
-   at varinit_begin where object == node.object -> initializing
-   ("=" lvalue rvalue) at assignment_begin
-      where exists node.object && object == node.object -> initializing
-   at * where exists node.astnode.nullptr when initializing -> seeing_nullptr
-   ("function_call" ("identifier" m{^(?:re|m|c)alloc$}) args...)
-      when initializing or seeing_nullptr -> invoking_malloc
-   ("function_call" *) when seeing_nullptr -> initializing
-   ("address_of" *) when initializing or seeing_nullptr -> nonnull
-   at varinit_end or assignment_end
-      when initializing -> nonnull
-      when seeing_nullptr -> isnull
-      when invoking_malloc -> welldefined
-   ("address_of" ("identifier" varname)) in ("function_call" *) -> nonnull
+   at * -> {
+      ptrval = null;
+      if (exists node.astnode.ptrval) {
+	 ptrval = node.astnode.ptrval;
+      }
+      update = false;
+   }
+   at varinit_end where object == node.object -> {
+      update = true;
+   }
+   ("=" lvalue rvalue) at assignment_end
+	 where exists node.object && object == node.object -> {
+      update = true;
+   }
+   at * where update && ptrval == "null" -> isnull
+   at * where update && ptrval == "welldefined" -> welldefined
+   at * where update && ptrval == "nonnull" -> nonnull
+   at * where update && ptrval == null -> nonnull
 
    /* track invocations of free/cfree where our pointer variable
       is given */
@@ -134,19 +139,29 @@ state machine localptr: local_tracker (
    ("identifier" varname) as id at conditional_fork
       where exists id.object && id.object == object
       if t and when welldefined -> nonnull
+      if t and when isnull -> cut
       if f and when welldefined -> isnull
+      if f and when nonnull -> cut
    ("!" ("identifier" varname) as id) at conditional_fork
       where exists id.object && id.object == object
       if t and when welldefined -> isnull
+      if t and when nonnull -> cut
       if f and when welldefined -> nonnull
+      if f and when isnull -> cut
    ("!=" ("identifier" varname) as id value) at conditional_fork
-      where exists value.nullptr && exists id.object && id.object == object
+      where exists value.ptrval && value.ptrval == "null" &&
+	 exists id.object && id.object == object
       if t and when welldefined -> nonnull
+      if t and when isnull -> cut
       if f and when welldefined -> isnull
+      if f and when nonnull -> cut
    ("==" ("identifier" varname) as id value) at conditional_fork
-      where exists value.nullptr && exists id.object && id.object == object
+      where exists value.ptrval && value.ptrval == "null" &&
+	 exists id.object && id.object == object
       if t and when welldefined -> isnull
+      if t and when nonnull -> cut
       if f and when welldefined -> nonnull
+      if f and when isnull -> cut
 
    /* track when our pointer is dereferenced */
    ("pointer_dereference" ("identifier" varname) as id)
@@ -163,15 +178,39 @@ state machine localptr: local_tracker (
       when isnull -> cut {
 	 err(varname, ": dereferenced pointer is 0");
       }
+   ("[]" ("identifier" varname) as id index)
+      where exists id.object && id.object == object
+      when undefined -> cut {
+	 err(varname, ": dereferencing undefined pointer");
+      }
+      when welldefined -> cut {
+	 err(varname, ": dereferenced pointer has not been tested against 0");
+      }
+      when freed -> cut {
+	 err(varname, ": dereferencing an already freed pointer");
+      }
+      when isnull -> cut {
+	 err(varname, ": dereferenced pointer is 0");
+      }
    /* check other pointer usages */
    ("identifier" varname) as id
 	 in ([assignment_operators] lvalue here) as stmt
-	 and ! in ("address_of" *)
+	 and ! in ("address_of" *) and ! in ("sizeof" *)
       where exists id.object && id.object == object
       when undefined -> cut {
 	 err(varname, ": using an undefined pointer in ", gentext(stmt));
       }
       when freed -> cut {
 	 err(varname, ": assigning a freed pointer");
+      }
+   ("identifier" varname) as id
+	 ! in ([assignment_operators] *)
+	 and ! in ("address_of" *) and ! in ("sizeof" *)
+      where exists id.object && id.object == object
+      when undefined -> cut {
+	 err(varname, ": using an undefined pointer");
+      }
+      when freed -> cut {
+	 err(varname, ": using a freed pointer");
       }
 }
