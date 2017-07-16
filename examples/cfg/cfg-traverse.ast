@@ -17,10 +17,10 @@ sub traverse(node) {
 }
 
 sub main {
-   if (exists graph.entries.main) {
-      traverse(graph.entries.main);
+   if (exists graph.root) {
+      traverse(graph.root);
    } else {
-      foreach entry in (graph.entries) {
+      foreach (id, entry) in (graph.entries) {
 	 traverse(entry);
       }
    }
