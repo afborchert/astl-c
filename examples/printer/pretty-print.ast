@@ -1,0 +1,9 @@
+#!../../astl-c/astl-c
+
+library "../../lib";
+import ops;
+import printer;
+
+sub main {
+   println(gentext(root));
+}
