@@ -21,6 +21,7 @@
 */
 
 import ops;
+import symtab;
 
 // emit some debug text for a control flow graph node,
 // this is used by diagnostic messages
@@ -311,9 +312,15 @@ attribution rules {
 	 graph.exit_functions{exit_function} = 1;
       }
    }
-   ("translation_unit" *) -> post {
+   ("translation_unit" *) as unit -> post {
       if (exists graph.entries.main) {
 	 graph.root = graph.entries.main;
+      } else {
+	 var global = cfg_node("unit", unit); init_node(global);
+	 foreach (id, entry) in (graph.entries) {
+	    cfg_connect(global, entry);
+	 }
+	 graph.root = global;
       }
    }
    ("direct_declarator" ("identifier" id)) in ("declarator" *) as decl -> {
@@ -615,32 +622,35 @@ attribution rules {
       var prevnode;
       var firstnode;
       foreach object in (stmt.objects) {
-	 var node = cfg_node("vardecl", object.astnode); init_node(node);
-	 node.varname = object.name;
-	 node.vartype = object.t;
-	 node.object = object;
-	 if (exists stmt.block) {
-	    node.block = stmt.block;
-	 }
-	 if (prevnode) {
-	    connect(prevnode, node);
-	 } else {
-	    firstnode = node;
-	 }
-	 prevnode = node;
-	 if (exists object.initializer) {
-	    check_astnode(object.initializer);
-	    var initnode_begin = cfg_node("varinit_begin", object.initializer);
-	    init_node(initnode_begin);
-	    var initnode_end = cfg_node("varinit_end", object.initializer);
-	    init_node(initnode_end);
-	    initnode_end.varname = initnode_begin.varname = object.name;
-	    initnode_end.object = initnode_begin.object = object;
-	    initnode_end.vartype = initnode_begin.vartype = object.t;
-	    connect(prevnode, initnode_begin);
-	    connect(initnode_begin, object.initializer);
-	    connect(object.initializer, initnode_end);
-	    prevnode = initnode_end;
+	 if (exists object.class && object.class == "var") {
+	    var node = cfg_node("vardecl", object.astnode); init_node(node);
+	    node.varname = object.name;
+	    node.vartype = object.t;
+	    node.object = object;
+	    if (exists stmt.block) {
+	       node.block = stmt.block;
+	    }
+	    if (prevnode) {
+	       connect(prevnode, node);
+	    } else {
+	       firstnode = node;
+	    }
+	    prevnode = node;
+	    if (exists object.initializer) {
+	       check_astnode(object.initializer);
+	       var initnode_begin = cfg_node("varinit_begin",
+		  object.initializer);
+	       init_node(initnode_begin);
+	       var initnode_end = cfg_node("varinit_end", object.initializer);
+	       init_node(initnode_end);
+	       initnode_end.varname = initnode_begin.varname = object.name;
+	       initnode_end.object = initnode_begin.object = object;
+	       initnode_end.vartype = initnode_begin.vartype = object.t;
+	       connect(prevnode, initnode_begin);
+	       connect(initnode_begin, object.initializer);
+	       connect(object.initializer, initnode_end);
+	       prevnode = initnode_end;
+	    }
 	 }
       }
       if (firstnode) {
