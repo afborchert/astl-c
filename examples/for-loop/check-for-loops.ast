@@ -1,0 +1,33 @@
+#!../../astl-c/astl-c
+
+/* check if a for loop variable remains uninitialized;
+   note that we accept an initialization within the condition
+   of the for loop */
+
+import printer;
+
+attribution rules {
+   ("for" init condition increment stmt) as forloop -> pre {
+      forloop.vars = {}; // candidates where we possibly issue a warning
+   }
+   ("direct_declarator" ("identifier" varname)) in
+	 ("init_declarator" ("declarator" *)) and in
+	 ("declaration" *) as decl and in
+	 ("for" here condition increment stmt) as forloop -> post {
+      forloop.vars{varname} = {
+	 loc -> location(decl),
+	 text -> gentext(decl)
+      };
+   }
+   ("=" ("identifier" varname) rvalue) in
+	 ("for" init here increment stmt) as forloop -> post {
+      delete forloop.vars{varname}; // delete corresponding candidate
+   }
+   ("for" init condition increment stmt) as forloop -> post {
+      /* print warnings for surviving candidates */
+      foreach (varname, record) in (forloop.vars) {
+	 println("for loop variable ", varname,
+	    " is not initialized at ", record.loc, ": ", record.text);
+      }
+   }
+}
