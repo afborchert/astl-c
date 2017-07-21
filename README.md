@@ -48,7 +48,7 @@ $
 Occasionally, the initialization of a for loop variable
 is missing. The gcc compiler delivers no warning and
 if the loop variable is of an unsigned integer type
-such an error may go unnoticed in case as follows
+such an error may go unnoticed in cases as following
 where the index variable is guaranteed to be within
 the array index range within the body of the for loop:
 
@@ -58,7 +58,7 @@ for (std::size_t i; i < sizeof(a)/sizeof(a[0]); ++i) {
 }
 ```
 
-As `i` is left uninitialized, it may be 0, positive but
+As _i_ is left uninitialized, it may be 0, positive but
 within range, or out of range. In the latter two cases
 the array is left partially or entirely uninitialized.
 
