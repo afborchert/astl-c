@@ -85,7 +85,7 @@ _declaration_. We are just interested in cases
 where we have a declaration which in turn consists
 of the _declaration specifiers_ (like `std::size_t`
 in the example above) and an _init declarator list_
-can declare one or more variables. Each of the
+which can declare one or more variables. Each of the
 variables within an _init declarator list_
 is introduced by an _init declarator_ which consists
 of a _declarator_ and optionally an _initializer_.
@@ -110,18 +110,21 @@ as follows:
 ```
 
 Note that we specify the to be matched syntax subtree
-only to the detail necessary. We insist of a _declaration_
+only to the level of detail which is necessary.
+We insist, for example, on a _declaration_
 subnode within a _for_ node. However, we do not specify
 how the first subnode of the declaration looks like.
 Instead we let it be bound to the variable _specifiers_.
 Next comes the _init declarator list_ along with an
-_init declarator_ with just a _declarator_ but not
+_init declarator_ with just one _declarator_ without
 an _initializer_. Here we do not go into further
-detail regarding the _declarator_ we just let the subnode
+detail regarding the _declarator_ as we just let the subnode
 be bound to a variable of that name. Within the action
-to be executed for matching subtrees we can access all
-bound variables. The predefined function _location_
-simply delivers the source location range of the corresponding
+for matching subtrees we can access all bound variables
+that are named within the tree expression.
+
+As above, the predefined function _location_
+delivers the source location range of the corresponding
 syntax tree.
 
 Unfortunately this tree expression does not work in the
@@ -173,13 +176,13 @@ that starts even deeper at the _direct declarator_:
 ```
 
 Cascading contextual tree expressions match if the
-first tree expression is embedded in a subnode matching
+first tree expression is embedded within a subnode matching
 the next tree expression and if the latter subnode is
-embedded in the next tree expression.
+embedded within the next tree expression.
 
 Syntax trees consist of regular operator nodes with optional
-subnodes or tokens. Tokens are always embedded in
-special subnodes which have no other role to make
+subnodes or tokens. Tokens are always embedded within
+special subnodes which have no other role than to make
 matching easier. In C, all identifiers are
 embedded in subnodes of type _identifier_. Similarly,
 integer constants are embedded in subnodes of type
@@ -209,8 +212,7 @@ here through the use of attributions. The syntax
 trees can be arbitrarily attributed in Astl. Each
 variable that is bound to a node in the syntax tree
 can be used to refer to attributes associated with
-that particular node. Attributes are variables
-that are connected to a node.
+that particular node.
 
 Here is a simple example that uses attributes:
 
@@ -300,7 +302,7 @@ Finally, we print warnings for the survivors:
    }
 ```
 
-Put together this script delivers for
+Put together, this script delivers for
 
 ```
 extern int f(int);
@@ -317,7 +319,7 @@ following error message:
 for loop variable k is not initialized at badfor.c:3.8-24: int i, j = 0, k;
 ```
 
-In the examples directory to find this script at
+In the examples directory this script is to be found at
 _for-loop/check-for-loops.ast_.
 
 ## Warning
