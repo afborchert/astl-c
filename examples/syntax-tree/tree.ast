@@ -12,7 +12,7 @@ sub descend(nestlevel, node) {
       } else {
 	 result = result & ")";
       }
-      result = result & " @" & location(node);
+      // result = result & " @" & location(node);
    } else {
       result = " " x nestlevel & tokenliteral(node);
    }
