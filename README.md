@@ -320,7 +320,7 @@ for loop variable k is not initialized at badfor.c:3.8-24: int i, j = 0, k;
 ```
 
 In the examples directory this script is to be found at
-_for-loop/check-for-loops.ast_.
+[_for-loop/check-for-loops.ast_](https://github.com/afborchert/astl-c/blob/master/examples/for-loop/check-for-loops.ast).
 
 ## Warning
 
