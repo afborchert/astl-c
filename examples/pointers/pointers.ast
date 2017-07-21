@@ -163,6 +163,13 @@ state machine localptr: local_tracker (
       if f and when welldefined -> nonnull
       if f and when isnull -> cut
 
+   /* track when the address of our pointer variable is taken;
+      we go on then with the conservative approach with
+      the assumption that the pointer may become non-null then
+   */
+   ("address_of" ("identifier" varname) as id)
+      where exists id.object && id.object == object -> nonnull
+
    /* track when our pointer is dereferenced */
    ("pointer_dereference" ("identifier" varname) as id)
       where exists id.object && id.object == object
