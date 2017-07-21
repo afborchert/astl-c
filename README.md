@@ -345,4 +345,12 @@ C++14 support, GMP, _pcre2_, and _boost_ libraries:
 (cd astl-c && make)
 ```
 
+Documentation for Astl can also be obtained:
+
+```
+(cd astl/refman && make)
+```
+
+This requires TeX and some other tools.
+
 Some examples are to be found in the _examples_ subdirectory.
