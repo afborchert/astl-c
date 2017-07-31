@@ -19,6 +19,8 @@
 /* transformation rules to transform Kernighan/Ritchie style
    function definitions into those that conform with ISO-C */
 
+import symtab;
+
 inplace transformation rules transform_krstyle_to_std {
    ("identifier" id) as ident
 	 !in ("parameter_declaration" *) and
@@ -27,7 +29,7 @@ inplace transformation rules transform_krstyle_to_std {
 	    declaration_list compound_statement) as fdef and
 	 in ("external_declaration" *) as edecl
 	 where ident.declared ->
-      ("parameter_declaration" { ident.specifiers } { ident.declarator });
+      ("parameter_declaration" { ident.specifiers } { ident.declarator })
    ("identifier" id) as ident
 	 !in ("parameter_declaration" *) and
 	 in ("identifier_list" *) and
@@ -38,23 +40,23 @@ inplace transformation rules transform_krstyle_to_std {
       ("parameter_declaration"
 	 ("declaration_specifiers" ("type_specifier" ("int")))
 	 ("declarator" ("direct_declarator" ident))
-      );
+      )
    ("identifier_list" ("parameter_declaration" *) as pd)
 	 in ("function_definition" here
 	    declaration_list compound_statement) ->
-      ("parameter_list" pd);
+      ("parameter_list" pd)
    ("identifier_list" ("parameter_list" *) as pl
       ("parameter_declaration" *) as pd)
 	 in ("function_definition" here
 	    declaration_list compound_statement) ->
-      ("parameter_list" pl pd);
+      ("parameter_list" pl pd)
    ("direct_declarator" ddecl ("()" ("parameter_list" *) as pd)) ->
-      ("direct_declarator" ddecl ("()" ("parameter_type_list" pd)));
+      ("direct_declarator" ddecl ("()" ("parameter_type_list" pd)))
 }
 
 inplace transformation rules finish_transformation_of_krstyle_to_std {
    ("function_definition" declarator declaration_list compound_statement) ->
-      ("function_definition" declarator compound_statement);
+      ("function_definition" declarator compound_statement)
 }
 
 attribution rules tag_parameters {
@@ -107,7 +109,7 @@ attribution rules standardize_krstyle {
 	 edecl.parameters[index].declarator = {
 	    specifiers -> specifiers,
 	    declarator -> declarator
-	 }
+	 };
 	 edecl.parameters[index].t = declaration.t;
       }
    }
