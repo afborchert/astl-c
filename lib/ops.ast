@@ -18,9 +18,10 @@
 
 opset parentheses = ["()"];
 
-opset assignment_operators = [
-   "=" "+=" "-=" "*=" "/=" "%=" "<<=" ">>=" "&=" "^=" "|="
+opset updating_assignment_operators = [
+   "+=" "-=" "*=" "/=" "%=" "<<=" ">>=" "&=" "^=" "|="
 ];
+opset assignment_operators = [updating_assignment_operators "="];
 opset comparison_operators = ["==" "!=" "<" ">" "<=" ">="];
 opset logical_operators = ["||" "&&" "!"];
 opset binary_operators = ["|" "^" "&" "~"];
