@@ -500,10 +500,7 @@ print rules {
       ("()" parameter_type_list)) ->
 	 q{$direct_abstract_declarator($parameter_type_list)}
 
-// identifier_list
-   ("identifier_list" identifier) -> q{$identifier}
-   ("identifier_list" identifier_list identifier) ->
-      q{$identifier_list, $identifier}
+   ("identifier_list" identifier...) -> q{$identifier, $...}
 
 // labeled_statement
    ("labeled_statement" label statement) -> q{

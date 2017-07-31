@@ -502,6 +502,10 @@ sub is_integer(t) {
    return t && (t.kind == "integer" || t.kind == "enum");
 }
 
+sub is_real(t) {
+   return t && (t.kind == "real");
+}
+
 sub is_pointer(t) {
    return t && t.kind == "pointer";
 }
@@ -1096,11 +1100,11 @@ attribution rules {
    ("parameter_type_list" parameter_list dots) as ptl -> post {
       push(ptl.parameters, {varargs -> 1});
    }
-   ("identifier_list" ("identifier" id)) as idlist -> post {
-      idlist.names = [id];
-   }
-   ("identifier_list" list ("identifier" id)) as idlist -> post {
-      idlist.names = list.names & [id];
+   ("identifier_list" identifier...) as idlist -> post {
+      idlist.names = [];
+      foreach id in (identifier) {
+	 push(idlist.names, id);
+      }
    }
 
    // direct declarators
