@@ -1581,11 +1581,13 @@ name: IDENT
       { $$ = UNARY(identifier, $1); }
    ;
 
-string_literal: STRING_LITERAL
-      { $$ = UNARY(string_literal, $1); }
+string_literal: string_literal_items
+      { $$ = FLATTEN(NODE(string_literal), $1, string_literal_items); }
+   ;
+string_literal_items: STRING_LITERAL
    // see ISO C 6.4.5, point 7
-   | string_literal STRING_LITERAL
-      { $$ = BINARY(string_literal, $1, $2); }
+   | string_literal_items STRING_LITERAL
+      { $$ = BINARY(string_literal_items, $1, $2); }
    ;
 
 // gcc extension: http://gcc.gnu.org/onlinedocs/gcc/Attribute-Syntax.html

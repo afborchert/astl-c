@@ -631,10 +631,9 @@ print rules {
    ("int") -> q{int}
    ("identifier" ident) -> q{$ident}
    ("typedef_name" ident) -> q{$ident}
-   ("string_literal" s) -> q{$s}
-   ("string_literal" s1 s2) -> q{
-      $s1
-      $s2
+   ("string_literal" s...) -> q{
+      $s
+         $...
    }
 
    // gcc extension for attributes
