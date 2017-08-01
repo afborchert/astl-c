@@ -272,9 +272,14 @@ std_function_definition: symtab_open extended_declaration_specifiers
       }
    ;
 
-declaration_list: declaration
-   | declaration_list extended_declaration
-      { $$ = BINARY(declaration_list, $1, $2); }
+/* declaration lists are used by K&R-style functions for their parameters */
+declaration_list: declaration_list_items
+      { $$ = FLATTEN(NODE(declaration_list), $1, declaration_list_items); }
+   ;
+
+declaration_list_items: declaration
+   | declaration_list_items extended_declaration
+      { $$ = BINARY(declaration_list_items, $1, $2); }
    ;
 
 primary_expression: identifier

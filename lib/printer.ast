@@ -199,9 +199,9 @@ print rules {
 
    ("cast_expression" t expr) -> q{($t) $expr}
 
-   ("declaration_list" decl1 decl2) -> q{
-      $decl1
-      $decl2
+   ("declaration_list" decl...) -> q{
+      $decl
+      $...
    }
    ("declaration" declaration_specifiers) -> q{$declaration_specifiers;}
    ("declaration" declaration_specifiers init_declarator_list) ->
