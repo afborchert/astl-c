@@ -356,8 +356,7 @@ print rules {
    ("enum" ("enum_name" id)) -> q{enum $id}
    ("enum_name" id) -> q{$id}
 
-   ("enumerator_list" enumerator) -> q{$enumerator}
-   ("enumerator_list" list enumerator) -> q{$list, $enumerator}
+   ("enumerator_list" enumerator...) -> q{$enumerator, $...}
    ("enumerator" id) -> q{$id}
    ("enumerator" id expr) -> q{$id = $expr}
 
