@@ -1121,12 +1121,12 @@ restricted_declarator: restricted_direct_declarator
    ;
 
 /* direct declarator including a hack that accepts a type name as well
-   if it happen to be redefined through this declarator */
+   if it happens to be redefined through this declarator */
 direct_declarator: LPAREN extended_declarator RPAREN
       { $$ = UNARY(direct_declarator, UNARY(LPAREN, $2)); }
    | identifier
       { $$ = UNARY(direct_declarator, $1); }
-   /* bad programming style allows a type name to be redefined */
+   /* bad programming style that redefines a type name */
    | typedef_name
       { $$ = UNARY(direct_declarator, UNARY(identifier, $1->get_operand(0))); }
    | direct_declarator LBRACKET RBRACKET
@@ -1313,10 +1313,15 @@ pointer: STAR
       { $$ = BINARY(pointer, $2, $3); }
    ;
 
-type_qualifier_list: type_qualifier
-      { $$ = UNARY(type_qualifier_list, $1); }
-   | type_qualifier_list type_qualifier
-      { $$ = BINARY(type_qualifier_list, $1, $2); }
+type_qualifier_list: type_qualifier_list_items
+      {
+	 $$ = FLATTEN(NODE(type_qualifier_list), $1,
+	    type_qualifier_list_items);
+      }
+   ;
+type_qualifier_list_items: type_qualifier
+   | type_qualifier_list_items type_qualifier
+      { $$ = BINARY(type_qualifier_list_items, $1, $2); }
    ;
 
 type_qualifier_and_attribute_specifier_list: type_qualifier

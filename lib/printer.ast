@@ -440,9 +440,7 @@ print rules {
    ("pointer" qualifier pointer) -> q{* $qualifier $pointer}
 
    // type_qualifier_list
-   ("type_qualifier_list" type_qualifier) -> q{$type_qualifier}
-   ("type_qualifier_list" type_qualifier_list type_qualifier) ->
-      q{$type_qualifier_list $type_qualifier}
+   ("type_qualifier_list" type_qualifier...) -> q{$type_qualifier $...}
    ("type_qualifier_and_attribute_specifier_list" qs) -> q{$qs}
    ("type_qualifier_and_attribute_specifier_list" list qs) -> q{$list $qs}
 
