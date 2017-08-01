@@ -638,10 +638,9 @@ print rules {
    }
 
    // gcc extension for attributes
-   ("attribute_specifier_list" specifier) -> q{$specifier}
-   ("attribute_specifier_list" list specifier) -> q{$list $specifier}
+   ("attribute_specifier_list" specifier...) -> q{$specifier $...}
    ("attribute_specifier" attributes) -> q{__attribute__ (($attributes))}
-   ("attribute_list" list attribute) -> q{$list, $attribute}
+   ("attribute_list" attribute...) -> q{$attribute, $...}
    ("attribute") -> q{}
    ("attribute" name) -> q{$name}
    ("attribute" name parameters) -> q{$name($parameters)}

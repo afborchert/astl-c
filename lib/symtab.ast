@@ -972,8 +972,11 @@ attribution rules {
       decl.attributes = {};
       decl.attributes{gentext(name)} = parameters.params;
    }
-   ("attribute_list" attributes attribute) as decl -> post {
-      decl.attributes = attributes.attributes + attribute.attributes;
+   ("attribute_list" attribute...) as decl -> post {
+      decl.attributes = {};
+      foreach attr in (attribute) {
+	 decl.attributes += attr.attributes;
+      }
    }
    ("attribute_specifier" atlist) as atspec
 	 in ("declaration_specifiers" *) and in (decls *) as decl -> post {
@@ -986,11 +989,11 @@ attribution rules {
 	 in (attribute_specifier_targets *) -> post {
       atspec.attributes = atlist.attributes;
    }
-   ("attribute_specifier_list" spec) as atspec -> post {
-      atspec.attributes = spec.attributes;
-   }
-   ("attribute_specifier_list" list spec) as atspec -> post {
-      atspec.attributes = list.attributes + spec.attributes;
+   ("attribute_specifier_list" spec...) as atspec -> post {
+      atspec.attributes = {};
+      foreach sp in (spec) {
+	 atspec.attributes += sp.attributes;
+      }
    }
 
    ("declarator" direct_declarator) as decl -> post {
