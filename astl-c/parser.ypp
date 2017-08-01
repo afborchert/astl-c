@@ -637,10 +637,13 @@ asm_goto_spec: string_literal COLON asm_operands COLON asm_operands
 
 asm_operands: /* empty */
       { $$ = NODE(asm_operands); }
-   | asm_operand
-      { $$ = UNARY(asm_operands, $1); }
-   | asm_operands COMMA asm_operand
-      { $$ = BINARY(asm_operands, $1, $3); }
+   | asm_operand_list
+      { $$ = FLATTEN(NODE(asm_operands), $1, asm_operand_list); }
+   ;
+
+asm_operand_list: asm_operand
+   | asm_operand_list COMMA asm_operand
+      { $$ = BINARY(asm_operand_list, $1, $3); }
    ;
 
 asm_operand: string_literal

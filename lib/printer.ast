@@ -142,15 +142,29 @@ print rules {
    ("assembler_instructions" ("goto") asm_spec) ->
       q{asm goto ($asm_spec)}
    ("assembler_spec" s) -> q{$s}
-   ("assembler_spec" s output) -> q{$s : $output}
-   ("assembler_spec" s output input) -> q{$s : $output : $input}
-   ("assembler_spec" s output input clobbered) ->
-      q{$s : $output : $input : $clobbered}
-   ("asm_goto_spec" s output input clobbered labels) ->
-      q{$s : $output : $input : $clobbered : $labels}
-   ("asm_operands") -> q{}
-   ("asm_operands" op) -> q{$op}
-   ("asm_operands" ops op) -> q{$ops, $op}
+   ("assembler_spec" s output) -> q{
+      $s
+	 : $output
+   }
+   ("assembler_spec" s output input) -> q{
+      $s
+	 : $output
+	 : $input
+   }
+   ("assembler_spec" s output input clobbered) -> q{
+      $s
+	 : $output
+	 : $input
+	 : $clobbered
+   }
+   ("asm_goto_spec" s output input clobbered labels) -> q{
+      $s
+	 : $output
+	 : $input
+	 : $clobbered
+	 : $labels
+   }
+   ("asm_operands" op...) -> q{$op, $...}
    ("asm_operand" s) -> q{$s}
    ("asm_operand" s expr) -> q{$s ($expr)}
    ("asm_operand" name s expr) -> q{[$name] $s ($expr)}
