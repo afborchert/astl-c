@@ -191,23 +191,13 @@ print rules {
    // gcc extension for the __alignof__ inquiry
    ("alignof" type_or_lvalue) -> q{__alignof__($type_or_lvalue)}
 
-   ("initializer" ("expression" expr)) -> q{$expr}
-   ("initializer") -> q{{}}
-   ("initializer" ("initializer_list" *) as ilist) -> q{{$ilist}}
-
-   ("initializer_list" initializer) -> q{$initializer}
-   ("initializer_list" ("designation" *) as designation initializer) ->
+   // initializers
+   ("initializer" expr_or_list) -> q{$expr_or_list}
+   ("designated_initializer" designation initializer) ->
       q{$designation $initializer}
-   ("initializer_list"
-      ("initializer_list" *) as initializer_list initializer) ->
-	 q{$initializer_list, $initializer}
-   ("initializer_list" initializer_list designation initializer) ->
-      q{$initializer_list, $designation $initializer}
-
+   ("initializer_list" initializer...) -> q{{$initializer, $...}}
    ("designation" designator_list) -> q{$designator_list =}
-
-   // gcc extension
-   ("designated_range" a b) -> q{[$a ... $b]}
+   ("designated_range" a b) -> q{[$a ... $b]} // gcc extension
 
    ("cast_expression" t expr) -> q{($t) $expr}
 
