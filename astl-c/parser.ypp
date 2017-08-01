@@ -656,9 +656,16 @@ asm_operand: string_literal
 
 asm_clobbered_objects: /* empty */
       { $$ = NODE(asm_clobbered_objects); }
-   | asm_clobbered_object
-   | asm_clobbered_objects COMMA asm_clobbered_object
-      { $$ = BINARY(asm_clobbered_objects, $1, $3); }
+   | asm_clobbered_object_list
+      {
+	 $$ = FLATTEN(NODE(asm_clobbered_objects), $1,
+	    asm_clobbered_object_list);
+      }
+   ;
+
+asm_clobbered_object_list: asm_clobbered_object
+   | asm_clobbered_object_list COMMA asm_clobbered_object
+      { $$ = BINARY(asm_clobbered_object_list, $1, $3); }
    ;
 
 asm_clobbered_object: string_literal;

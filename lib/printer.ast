@@ -168,9 +168,7 @@ print rules {
    ("asm_operand" s) -> q{$s}
    ("asm_operand" s expr) -> q{$s ($expr)}
    ("asm_operand" name s expr) -> q{[$name] $s ($expr)}
-   ("asm_clobbered_objects") -> q{}
-   ("asm_clobbered_objects" obj) -> q{$obj}
-   ("asm_clobbered_objects" objs obj) -> q{$objs, $obj}
+   ("asm_clobbered_objects" obj...) -> q{$obj, $...}
 
    ("unreachable") -> q{__builtin_unreachable()}
 
