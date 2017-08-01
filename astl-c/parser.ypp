@@ -1038,10 +1038,15 @@ enumerator: enumeration_constant
 
 enumeration_constant: identifier;
 
-init_declarator_list: init_declarator
-      { $$ = UNARY(init_declarator_list, $1); }
-   | init_declarator_list COMMA extended_init_declarator
-      { $$ = BINARY(init_declarator_list, $1, $3); }
+init_declarator_list: init_declarator_list_items
+      {
+	 $$ = FLATTEN(NODE(init_declarator_list), $1,
+	    init_declarator_list_items);
+      }
+   ;
+init_declarator_list_items: init_declarator
+   | init_declarator_list_items COMMA extended_init_declarator
+      { $$ = BINARY(init_declarator_list_items, $1, $3); }
    ;
 
 init_declarator: declarator
@@ -1696,12 +1701,8 @@ void insert_ident(SymTable& symtab, NodePtr node, SymbolClass cls) {
  */
 void insert_idents(SymTable& symtab, NodePtr node, SymbolClass cls) {
    assert(node->get_op() == Op::init_declarator_list);
-   if (node->size() == 1) {
-      insert_ident(symtab, node->get_operand(0), cls);
-   } else {
-      assert(node->size() == 2);
-      insert_idents(symtab, node->get_operand(0), cls);
-      insert_ident(symtab, node->get_operand(1), cls);
+   for (std::size_t index = 0; index < node->size(); ++index) {
+      insert_ident(symtab, node->get_operand(index), cls);
    }
 }
 

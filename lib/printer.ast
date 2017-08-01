@@ -1,5 +1,6 @@
 /*
-   Copyright (C) 2009-2011 Yan Wang and Andreas Franz Borchert
+   Copyright (C) 2009-2011 Yan Wang and Andreas Franz Borchert,
+                 2017 Andreas Franz Borchert
    ----------------------------------------------------------------------------
    The Astl Library for C is free software; you can redistribute it
    and/or modify it under the terms of the GNU Library General Public
@@ -373,10 +374,7 @@ print rules {
    ("specifier_qualifier_list" specifier_or_qualifier list) ->
       q{$specifier_or_qualifier $list}
 
-// init_declarator_list
-   ("init_declarator_list" init_declarator) -> q{$init_declarator}
-   ("init_declarator_list" init_declarator_list init_declarator ) ->
-      q{$init_declarator_list, $init_declarator}
+   ("init_declarator_list" init_declarator...) -> q{$init_declarator, $...}
 
 // init_declarator
    ("init_declarator" declarator) -> q{$declarator}
