@@ -1230,14 +1230,11 @@ attribution rules {
    }
 
    // structs and unions
-   ("struct_declaration_list") as sdl -> post {
+   ("struct_declaration_list" declaration...) as sdl -> post {
       sdl.list = [];
-   }
-   ("struct_declaration_list" declaration) as sdl -> post {
-      sdl.list = [declaration.objects];
-   }
-   ("struct_declaration_list" list declaration) as sdl -> post {
-      sdl.list = list.list & [declaration.objects];
+      foreach decl in (declaration) {
+	 push(sdl.list, decl.objects);
+      }
    }
    (struct_or_union ("struct_declaration_list" *) as sdl) as struct -> post {
       fix_struct(struct, sdl);

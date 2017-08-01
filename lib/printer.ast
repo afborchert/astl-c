@@ -328,15 +328,13 @@ print rules {
    ("union_name" id) -> q{$id}
 
    // struct declaration lists (the empty case is already handled above)
-   ("struct_declaration_list" decl) -> q{$decl}
-   ("struct_declaration_list" decl_list decl) -> q{
-      $decl_list
+   ("struct_declaration_list" decl...) -> q{
       $decl
+      $...
    }
 
-   ("struct_declarator_list" struct_declarator) -> q{$struct_declarator}
-   ("struct_declarator_list" struct_declarator_list struct_declarator) ->
-      q{$struct_declarator_list, $struct_declarator}
+   ("struct_declarator_list" struct_declarator...) ->
+      q{$struct_declarator, $...}
 
    ("struct_declaration" specifier_qualifier_list struct_declarator_list) ->
       q{$specifier_qualifier_list $struct_declarator_list;}
