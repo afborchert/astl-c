@@ -1373,7 +1373,7 @@ attribution rules {
 	 }
       };
    }
-   ("[]" array index) as expr -> post {
+   ("[]" array index) as expr in ("expression" *) -> post {
       if (exists array.t && array.t &&
 	    (array.t.kind == "array" || array.t.kind == "pointer")) {
 	 expr.t = array.t.rtype;
