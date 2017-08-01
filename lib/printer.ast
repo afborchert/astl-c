@@ -444,14 +444,11 @@ print rules {
    ("type_qualifier_and_attribute_specifier_list" qs) -> q{$qs}
    ("type_qualifier_and_attribute_specifier_list" list qs) -> q{$list $qs}
 
-   // parameter_type_list
+   // parameter lists
    ("parameter_type_list" parameter_list) -> q{$parameter_list}
-   ("parameter_type_list" parameter_list ("...")) -> q{$parameter_list,...}
-
-   // parameter_list
-   ("parameter_list" parameter_declaration) -> q{$parameter_declaration}
-   ("parameter_list" parameter_list parameter_declaration) ->
-      q{$parameter_list, $parameter_declaration}
+   ("parameter_type_list" parameter_list ("...")) -> q{$parameter_list, ...}
+   ("parameter_list" parameter_declaration...) ->
+      q{$parameter_declaration, $...}
 
    // parameter_declaration
    ("parameter_declaration" declaration_specifiers

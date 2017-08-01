@@ -1335,13 +1335,18 @@ type_qualifier_and_attribute_specifier_list: type_qualifier
    ;
 
 parameter_type_list: parameter_list
-      { $$ = UNARY(parameter_type_list, $1); }
+      {
+	 $$ = UNARY(parameter_type_list,
+	    FLATTEN(NODE(parameter_list), $1, parameter_list));
+      }
    | parameter_list COMMA DOTS
-      { $$ = BINARY(parameter_type_list, $1, NODE(DOTS)); }
+      {
+	 $$ = BINARY(parameter_type_list,
+	    FLATTEN(NODE(parameter_list), $1, parameter_list), NODE(DOTS));
+      }
    ;
 
 parameter_list: parameter_declaration
-      { $$ = UNARY(parameter_list, $1); }
    | parameter_list COMMA parameter_declaration
       { $$ = BINARY(parameter_list, $1, $3); }
    ;
