@@ -65,6 +65,9 @@ using namespace Astl;
 #define FLATTEN(node, subnodes, op) \
    (flatten(node, subnodes, Op::op))
 
+#define FLATTEN_RIGHT(node, subnodes, op) \
+   (flatten_right(node, subnodes, Op::op))
+
 bool is_typedef(NodePtr node);
 void insert_idents(AstlC::SymTable& symtab, NodePtr node,
    AstlC::SymbolClass cls);
@@ -73,6 +76,7 @@ void insert_ident_in_declarator(AstlC::SymTable& symtab,
 void insert_ident_in_direct_declarator(AstlC::SymTable& symtab,
       NodePtr node, AstlC::SymbolClass cls);
 NodePtr flatten(NodePtr node, NodePtr subnodes, const Operator& op);
+NodePtr flatten_right(NodePtr node, NodePtr subnodes, const Operator& op);
 
 %}
 
@@ -87,6 +91,9 @@ NodePtr flatten(NodePtr node, NodePtr subnodes, const Operator& op);
 %parse-param { SymTable& symtab }
 %parse-param { Astl::NodePtr& root }
 %lex-param { Scanner& scanner }
+
+/* expect one shift/reduce conflict for the dangling else problem */
+%expect 1
 
 /* tokens of C99 in conformance to ISO 9899-1999 */
 
@@ -681,24 +688,44 @@ extended_declaration: symtab_open
       }
    ;    			
 
-/* according to ISO C-99 declaration specifiers must include a type */
-declaration_specifiers: type_specifier
-      { $$ = UNARY(declaration_specifiers, $1); }
-   | singular_type_specifier
-      { $$ = UNARY(declaration_specifiers, $1); }
-   | storage_class_specifier declaration_specifiers
-      { $$ = BINARY(declaration_specifiers, $1, $2); }
-   | type_specifier relaxed_declaration_specifiers
-      { $$ = BINARY(declaration_specifiers, $1, $2); }
-   | singular_type_specifier restricted_declaration_specifiers
-      { $$ = BINARY(declaration_specifiers, $1, $2); }
-   | type_qualifier declaration_specifiers
-      { $$ = BINARY(declaration_specifiers, $1, $2); }
-   | function_specifier declaration_specifiers
-      { $$ = BINARY(declaration_specifiers, $1, $2); }
+/* wrappers that flattens syntax trees of declaration specifiers */
+declaration_specifiers: declaration_specifiers_list
+      {
+	 $$ = FLATTEN_RIGHT(NODE(declaration_specifiers),
+	    $1, declaration_specifiers_list);
+      }
+   ;
+extended_declaration_specifiers: extended_declaration_specifiers_list
+      {
+	 $$ = FLATTEN_RIGHT(NODE(declaration_specifiers),
+	    $1, declaration_specifiers_list);
+      }
+   ;
+restricted_declaration_specifiers: restricted_declaration_specifiers_list
+      {
+	 $$ = FLATTEN_RIGHT(NODE(declaration_specifiers),
+	    $1, declaration_specifiers_list);
+      }
    ;
 
-/* like declaration_specifiers but accept gcc extension
+/* according to ISO C-99 declaration specifiers must include a type */
+declaration_specifiers_list: type_specifier
+   | singular_type_specifier
+   | storage_class_specifier declaration_specifiers_list
+      { $$ = BINARY(declaration_specifiers_list, $1, $2); }
+   | type_specifier relaxed_declaration_specifiers
+      { $$ = BINARY(declaration_specifiers_list, $1, $2); }
+   | singular_type_specifier restricted_declaration_specifiers_list
+      { $$ = BINARY(declaration_specifiers_list, $1, $2); }
+   | type_qualifier declaration_specifiers_list
+      { $$ = BINARY(declaration_specifiers_list, $1, $2); }
+   | function_specifier declaration_specifiers_list
+      { $$ = BINARY(declaration_specifiers_list, $1, $2); }
+   ;
+
+/* like declaration_specifiers but where
+   we have already seen a type specifier;
+   hence we can accept now the gcc extension
    that allows to give attribute specifiers;
    this should not be permitted in all cases as in
 
@@ -706,102 +733,84 @@ declaration_specifiers: type_specifier
 
    it remains ambigious whether the attribute is associated
    with the function f or the parameter i */
-extended_declaration_specifiers: type_specifier
-      { $$ = UNARY(declaration_specifiers, $1); }
+extended_declaration_specifiers_list: type_specifier
    | singular_type_specifier
-      { $$ = UNARY(declaration_specifiers, $1); }
-   | storage_class_specifier extended_declaration_specifiers
-      { $$ = BINARY(declaration_specifiers, $1, $2); }
+   | storage_class_specifier extended_declaration_specifiers_list
+      { $$ = BINARY(declaration_specifiers_list, $1, $2); }
    | type_specifier relaxed_declaration_specifiers_with_extensions
-      { $$ = BINARY(declaration_specifiers, $1, $2); }
+      { $$ = BINARY(declaration_specifiers_list, $1, $2); }
    | singular_type_specifier restricted_declaration_specifiers_with_extensions
-      { $$ = BINARY(declaration_specifiers, $1, $2); }
-   | type_qualifier extended_declaration_specifiers
-      { $$ = BINARY(declaration_specifiers, $1, $2); }
-   | function_specifier extended_declaration_specifiers
-      { $$ = BINARY(declaration_specifiers, $1, $2); }
+      { $$ = BINARY(declaration_specifiers_list, $1, $2); }
+   | type_qualifier extended_declaration_specifiers_list
+      { $$ = BINARY(declaration_specifiers_list, $1, $2); }
+   | function_specifier extended_declaration_specifiers_list
+      { $$ = BINARY(declaration_specifiers_list, $1, $2); }
    // gcc extension: http://gcc.gnu.org/onlinedocs/gcc/Attribute-Syntax.html
-   | attribute_specifier extended_declaration_specifiers
-      { $$ = BINARY(declaration_specifiers, $1, $2); }
+   | attribute_specifier extended_declaration_specifiers_list
+      { $$ = BINARY(declaration_specifiers_list, $1, $2); }
    ;
 
 /* non-singular type specifier already seen, attributes permitted */
 relaxed_declaration_specifiers_with_extensions: storage_class_specifier
-      { $$ = UNARY(declaration_specifiers, $1); }
    | type_specifier
-      { $$ = UNARY(declaration_specifiers, $1); }
    | type_qualifier
-      { $$ = UNARY(declaration_specifiers, $1); }
    | function_specifier
-      { $$ = UNARY(declaration_specifiers, $1); }
    | storage_class_specifier relaxed_declaration_specifiers_with_extensions
-      { $$ = BINARY(declaration_specifiers, $1, $2); }
+      { $$ = BINARY(declaration_specifiers_list, $1, $2); }
    | type_specifier relaxed_declaration_specifiers_with_extensions
-      { $$ = BINARY(declaration_specifiers, $1, $2); }
+      { $$ = BINARY(declaration_specifiers_list, $1, $2); }
    | type_qualifier relaxed_declaration_specifiers_with_extensions
-      { $$ = BINARY(declaration_specifiers, $1, $2); }
+      { $$ = BINARY(declaration_specifiers_list, $1, $2); }
    | function_specifier relaxed_declaration_specifiers_with_extensions
-      { $$ = BINARY(declaration_specifiers, $1, $2); }
+      { $$ = BINARY(declaration_specifiers_list, $1, $2); }
    // gcc extension: http://gcc.gnu.org/onlinedocs/gcc/Attribute-Syntax.html
    | attribute_specifier
-      { $$ = UNARY(declaration_specifiers, $1); }
    | attribute_specifier relaxed_declaration_specifiers_with_extensions
-      { $$ = BINARY(declaration_specifiers, $1, $2); }
+      { $$ = BINARY(declaration_specifiers_list, $1, $2); }
    ;
 
 /* restricted declaration specifiers that do not permit type specifiers,
    gcc extensions permitted
 */
 restricted_declaration_specifiers_with_extensions: storage_class_specifier
-      { $$ = UNARY(declaration_specifiers, $1); }
    | type_qualifier
-      { $$ = UNARY(declaration_specifiers, $1); }
    | function_specifier
-      { $$ = UNARY(declaration_specifiers, $1); }
    | storage_class_specifier restricted_declaration_specifiers_with_extensions
-      { $$ = BINARY(declaration_specifiers, $1, $2); }
+      { $$ = BINARY(declaration_specifiers_list, $1, $2); }
    | type_qualifier restricted_declaration_specifiers_with_extensions
-      { $$ = BINARY(declaration_specifiers, $1, $2); }
+      { $$ = BINARY(declaration_specifiers_list, $1, $2); }
    | function_specifier restricted_declaration_specifiers_with_extensions
-      { $$ = BINARY(declaration_specifiers, $1, $2); }
+      { $$ = BINARY(declaration_specifiers_list, $1, $2); }
    // gcc extension: http://gcc.gnu.org/onlinedocs/gcc/Attribute-Syntax.html
    | attribute_specifier
-      { $$ = UNARY(declaration_specifiers, $1); }
    | attribute_specifier restricted_declaration_specifiers_with_extensions
-      { $$ = BINARY(declaration_specifiers, $1, $2); }
+      { $$ = BINARY(declaration_specifiers_list, $1, $2); }
    ;
 
 /* non-singular type specifier already seen */
 relaxed_declaration_specifiers: storage_class_specifier
-      { $$ = UNARY(declaration_specifiers, $1); }
    | type_specifier
-      { $$ = UNARY(declaration_specifiers, $1); }
    | type_qualifier
-      { $$ = UNARY(declaration_specifiers, $1); }
    | function_specifier
-      { $$ = UNARY(declaration_specifiers, $1); }
    | storage_class_specifier relaxed_declaration_specifiers
-      { $$ = BINARY(declaration_specifiers, $1, $2); }
+      { $$ = BINARY(declaration_specifiers_list, $1, $2); }
    | type_specifier relaxed_declaration_specifiers
-      { $$ = BINARY(declaration_specifiers, $1, $2); }
+      { $$ = BINARY(declaration_specifiers_list, $1, $2); }
    | type_qualifier relaxed_declaration_specifiers
-      { $$ = BINARY(declaration_specifiers, $1, $2); }
+      { $$ = BINARY(declaration_specifiers_list, $1, $2); }
    | function_specifier relaxed_declaration_specifiers
-      { $$ = BINARY(declaration_specifiers, $1, $2); }
+      { $$ = BINARY(declaration_specifiers_list, $1, $2); }
    ;
 /* restricted declaration specifiers that do not permit type specifiers */
-restricted_declaration_specifiers: storage_class_specifier
-      { $$ = UNARY(declaration_specifiers, $1); }
+restricted_declaration_specifiers_list: storage_class_specifier
    | type_qualifier
-      { $$ = UNARY(declaration_specifiers, $1); }
    | function_specifier
-      { $$ = UNARY(declaration_specifiers, $1); }
-   | storage_class_specifier restricted_declaration_specifiers
-      { $$ = BINARY(declaration_specifiers, $1, $2); }
-   | type_qualifier restricted_declaration_specifiers
-      { $$ = BINARY(declaration_specifiers, $1, $2); }
-   | function_specifier restricted_declaration_specifiers
-      { $$ = BINARY(declaration_specifiers, $1, $2); }
+   | storage_class_specifier restricted_declaration_specifiers_list
+      { $$ = BINARY(declaration_specifiers_list, $1, $2); }
+   | type_qualifier restricted_declaration_specifiers_list
+      { $$ = BINARY(declaration_specifiers_list, $1, $2); }
+   | function_specifier restricted_declaration_specifiers_list
+      { $$ = BINARY(declaration_specifiers_list, $1, $2); }
    ;
 
 storage_class_specifier: TYPEDEF
@@ -1612,13 +1621,10 @@ bool is_typedef(NodePtr node) {
    if (node->get_op() != Op::declaration_specifiers) {
       return false;
    }
-   if (node->size() == 1) {
-      return is_typedef(node->get_operand(0));
-   } else {
-      assert(node->size() == 2);
-      return is_typedef(node->get_operand(0)) ||
-	     is_typedef(node->get_operand(1));
+   for (std::size_t index = 0; index < node->size(); ++index) {
+      if (is_typedef(node->get_operand(index))) return true;
    }
+   return false;
 }
 
 void insert_ident_in_declarator(SymTable& symtab,
@@ -1697,4 +1703,17 @@ void insert_idents(SymTable& symtab, NodePtr node, SymbolClass cls) {
       insert_idents(symtab, node->get_operand(0), cls);
       insert_ident(symtab, node->get_operand(1), cls);
    }
+}
+
+/* flatten right-associative chain */
+NodePtr flatten_right(NodePtr node, NodePtr subnodes,
+      const Operator& op) {
+   if (!subnodes->is_leaf() &&
+	 subnodes->get_op() == op && subnodes->size() == 2) {
+      *node += subnodes->get_operand(0);
+      flatten_right(node, subnodes->get_operand(1), op);
+   } else {
+      *node += subnodes;
+   }
+   return node;
 }

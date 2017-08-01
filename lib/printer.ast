@@ -206,10 +206,8 @@ print rules {
    ("declaration" declaration_specifiers init_declarator_list) ->
       q{$declaration_specifiers $init_declarator_list;}
 
-   ("declaration_specifiers" specifier) ->
-      q{$specifier}
-   ("declaration_specifiers" specifier specifiers) ->
-      q{$specifier $specifiers}
+   ("declaration_specifiers" specifier...) ->
+      q{$specifier $...}
 
    ("storage_class_specifier" ("typedef")) -> q{typedef}
    ("storage_class_specifier" ("extern")) -> q{extern}
