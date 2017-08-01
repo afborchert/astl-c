@@ -1103,10 +1103,13 @@ attribution rules {
    ("parameter_type_list" parameter_list dots) as ptl -> post {
       push(ptl.parameters, {varargs -> 1});
    }
+   ("identifier" name) as id -> {
+      id.name = name;
+   }
    ("identifier_list" identifier...) as idlist -> post {
       idlist.names = [];
       foreach id in (identifier) {
-	 push(idlist.names, id);
+	 push(idlist.names, id.name);
       }
    }
 
@@ -1342,7 +1345,8 @@ attribution rules {
    }
 
    // types of expressions
-   ("identifier" id) as ident in (blocks *) as block -> {
+   ("identifier" id) as ident
+	 in ("expression" *) and in (blocks *) as block -> {
       ident.object = lookup(block, id);
       if (ident.object) {
 	 ident.t = ident.object.t;
