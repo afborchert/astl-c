@@ -360,20 +360,17 @@ print rules {
    ("enumerator" id) -> q{$id}
    ("enumerator" id expr) -> q{$id = $expr}
 
-// type_name
+   // type_name
    ("type_name" specifier_qualifier_list) -> q{$specifier_qualifier_list}
    ("type_name" specifier_qualifier_list abstract_declarator) ->
       q{$specifier_qualifier_list $abstract_declarator}
 
-// specifier_qualifier_list
-   ("specifier_qualifier_list" specifier_or_qualifier) ->
-      q{$specifier_or_qualifier}
-   ("specifier_qualifier_list" specifier_or_qualifier list) ->
-      q{$specifier_or_qualifier $list}
+   ("specifier_qualifier_list" specifier_or_qualifier...) ->
+      q{$specifier_or_qualifier $...}
 
    ("init_declarator_list" init_declarator...) -> q{$init_declarator, $...}
 
-// init_declarator
+   // init_declarator
    ("init_declarator" declarator) -> q{$declarator}
    ("init_declarator" declarator initializer) -> q{$declarator = $initializer}
    ("init_declarator_with_attributes" declarator attributes) ->
@@ -381,7 +378,7 @@ print rules {
    ("init_declarator_with_attributes" declarator attributes initializer) ->
       q{$declarator $attributes = $initializer}
 
-// declarator
+   // declarator
    ("asm_labeled_declarator" declarator label) -> q{$declarator asm($label)}
    ("declarator" direct_declarator) -> q{$direct_declarator}
    ("declarator" pointer direct_declarator) -> q{$pointer $direct_declarator}
@@ -389,7 +386,7 @@ print rules {
    ("declarator_with_attributes" declarator attributes) ->
       q{$attributes $declarator}
 
-// direct_declarator
+   // direct_declarator
    ("direct_declarator" identifier) -> q{$identifier}
    ("direct_declarator" ("()" ("declarator" *) as declarator)) ->
       q{($declarator)}
@@ -436,29 +433,29 @@ print rules {
    ("direct_declarator_with_attributes" ddeclarator attributes) ->
       q{$ddeclarator $attributes}
 
-// pointer
+   // pointer
    ("pointer") -> q{*}
    ("pointer" qualifier) -> q{* $qualifier}
    ("pointer" ("pointer" *) as pointer) -> q{*$pointer}
    ("pointer" qualifier pointer) -> q{* $qualifier $pointer}
 
-// type_qualifier_list
+   // type_qualifier_list
    ("type_qualifier_list" type_qualifier) -> q{$type_qualifier}
    ("type_qualifier_list" type_qualifier_list type_qualifier) ->
       q{$type_qualifier_list $type_qualifier}
    ("type_qualifier_and_attribute_specifier_list" qs) -> q{$qs}
    ("type_qualifier_and_attribute_specifier_list" list qs) -> q{$list $qs}
 
-// parameter_type_list
+   // parameter_type_list
    ("parameter_type_list" parameter_list) -> q{$parameter_list}
    ("parameter_type_list" parameter_list ("...")) -> q{$parameter_list,...}
 
-// parameter_list
+   // parameter_list
    ("parameter_list" parameter_declaration) -> q{$parameter_declaration}
    ("parameter_list" parameter_list parameter_declaration) ->
       q{$parameter_list, $parameter_declaration}
 
-// parameter_declaration
+   // parameter_declaration
    ("parameter_declaration" declaration_specifiers
       ("declarator" *) as declarator) ->
 	 q{$declaration_specifiers $declarator}
@@ -468,11 +465,11 @@ print rules {
       ("abstract_declarator" *) as abstract_declarator) ->
 	 q{$declaration_specifiers $abstract_declarator}
 
-// abstract_declarator
-  ("abstract_declarator" pointer_or_declarator) -> q{$pointer_or_declarator}
-  ("abstract_declarator" pointer declarator) -> q{$pointer $declarator}
+   // abstract_declarator
+   ("abstract_declarator" pointer_or_declarator) -> q{$pointer_or_declarator}
+   ("abstract_declarator" pointer declarator) -> q{$pointer $declarator}
 
-// direct_abstract_declarator
+   // direct_abstract_declarator
    ("direct_abstract_declarator" ("()" declarator)) -> q{($declarator)}
    ("direct_abstract_declarator" ("[]")) -> q{[]}
    ("direct_abstract_declarator" ("[]" assignment)) -> q{[$assignment]}
@@ -495,7 +492,7 @@ print rules {
 
    ("identifier_list" identifier...) -> q{$identifier, $...}
 
-// labeled_statement
+   // labeled_statement
    ("labeled_statement" label statement) -> q{
       $label:
       $statement
@@ -519,7 +516,6 @@ print rules {
 	 $statement
    }
 
-//compound_statement
    ("compound_statement" stmt...) -> q{
       {
 	 $stmt
@@ -527,11 +523,11 @@ print rules {
       }
    }
 
-// expression_statement
+   // expression_statement
    ("expression_statement") -> q{;}
    ("expression_statement" expression) -> q{$expression;}
 
-// if statement
+   // if statement
    ("if" expression statement) -> q{
       if ($expression)
 	 $statement
@@ -543,7 +539,7 @@ print rules {
 	 $statement1
    }
 
-// switch_or_iteration_statement
+   // switch_or_iteration_statement
    ("switch_or_iteration_statement" stmt) -> q{$stmt}
    ("switch_statement" stmt) -> q{$stmt}
    ("switch" expression statement) -> q{
@@ -557,7 +553,7 @@ print rules {
       }
    }
 
-// iteration statements
+   // iteration statements
    ("iteration_statement" stmt) -> q{$stmt}
    ("while" expression statement) -> q{
       while ($expression)

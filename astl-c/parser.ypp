@@ -975,37 +975,39 @@ type_name: specifier_qualifier_list
       { $$ = BINARY(type_name, $1, $2); }
    ;
 
+specifier_qualifier_list: specifier_qualifier_list_items
+      {
+	 $$ = FLATTEN_RIGHT(NODE(specifier_qualifier_list), $1,
+	    specifier_qualifier_list_items);
+      }
+   ;
+
 /* ISO C-99 insists on having at least one type specifier */
-specifier_qualifier_list: type_specifier
-      { $$ = UNARY(specifier_qualifier_list, $1); }
+specifier_qualifier_list_items: type_specifier
    | singular_type_specifier
-      { $$ = UNARY(specifier_qualifier_list, $1); }
    | type_specifier relaxed_specifier_qualifier_list
-      { $$ = BINARY(specifier_qualifier_list, $1, $2); }
+      { $$ = BINARY(specifier_qualifier_list_items, $1, $2); }
    | singular_type_specifier restricted_specifier_qualifier_list
-      { $$ = BINARY(specifier_qualifier_list, $1, $2); }
-   | type_qualifier specifier_qualifier_list
-      { $$ = BINARY(specifier_qualifier_list, $1, $2); }
+      { $$ = BINARY(specifier_qualifier_list_items, $1, $2); }
+   | type_qualifier specifier_qualifier_list_items
+      { $$ = BINARY(specifier_qualifier_list_items, $1, $2); }
    ;
 
 /* one type specifier already seen, other non-singular type specifiers
    may follow */
 relaxed_specifier_qualifier_list: type_specifier
-      { $$ = UNARY(specifier_qualifier_list, $1); }
    | type_specifier relaxed_specifier_qualifier_list
-      { $$ = BINARY(specifier_qualifier_list, $1, $2); }
+      { $$ = BINARY(specifier_qualifier_list_items, $1, $2); }
    | type_qualifier
-      { $$ = UNARY(specifier_qualifier_list, $1); }
    | type_qualifier relaxed_specifier_qualifier_list
-      { $$ = BINARY(specifier_qualifier_list, $1, $2); }
+      { $$ = BINARY(specifier_qualifier_list_items, $1, $2); }
    ;
 
 /* restricted specifier qualifier list that does not permit
    any type specifiers */
 restricted_specifier_qualifier_list: type_qualifier
-      { $$ = UNARY(specifier_qualifier_list, $1); }
    | type_qualifier restricted_specifier_qualifier_list
-      { $$ = BINARY(specifier_qualifier_list, $1, $2); }
+      { $$ = BINARY(specifier_qualifier_list_items, $1, $2); }
    ;
 
 struct_declarator_list: struct_declarator_list_items
