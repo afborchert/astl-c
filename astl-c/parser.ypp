@@ -1649,7 +1649,10 @@ attribute: /* empty */
    | attribute_name
       { $$ = UNARY(attribute, $1); }
    | attribute_name LPAREN attribute_parameters RPAREN
-      { $$ = BINARY(attribute, $1, $3); }
+      {
+	 $$ = BINARY(attribute, $1,
+	    FLATTEN(NODE(attribute_parameters), $3, attribute_parameters));
+      }
    ;
 
 attribute_name: IDENT

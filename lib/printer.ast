@@ -645,6 +645,6 @@ print rules {
    ("attribute" name) -> q{$name}
    ("attribute" name parameters) -> q{$name($parameters)}
    ("attribute_name" ident) -> q{$ident}
-   ("attribute_parameters" parameters parameter) -> q{$parameters, $parameter}
-   ("attribute_parameter" parameter) -> q{$parameter}
+   ("attribute_parameters" parameter...) -> q{$parameter, $...}
+   ("attribute_parameter" expr) -> q{$expr}
 }

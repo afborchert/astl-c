@@ -956,10 +956,13 @@ attribution rules {
    }
    // gcc extensions for attribute specifiers
    ("attribute_parameter" expr) as decl -> post {
-      decl.params = [expr];
+      decl.param = expr;
    }
-   ("attribute_parameters" parameters parameter) as decl -> post {
-      decl.params = parameters.params & parameter.params;
+   ("attribute_parameters" parameters...) as decl -> post {
+      decl.params = [];
+      foreach parameter in (parameters) {
+	 push(decl.params, parameter.param);
+      }
    }
    ("attribute") as decl -> post {
       decl.attributes = {};
