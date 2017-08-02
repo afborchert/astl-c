@@ -559,19 +559,20 @@ attribution rules {
    }
 
    // function calls
-   ("argument_expression_list" arg) as stmt -> post {
-      var node = cfg_node("param", arg); init_node(node);
-      connect(arg, node);
-      check_astnode(arg);
-      stmt.entry = arg.entry;
-      stmt.exits = [node];
-   }
-   ("argument_expression_list" args1 args2) as stmt -> post {
-      connect(args1, args2);
-      var node = cfg_node("param", args2); init_node(node);
-      connect(args2, node);
-      stmt.entry = args1.entry;
-      stmt.exits = [node];
+   ("argument_expression_list" args...) as exprlist -> post {
+      /* make the sequence point at the beginning explicit,
+         see section 6.5.2.2, paragraph 10 of C99 */
+      var node = cfg_node("argument_list", exprlist); init_node(node);
+      var prev = node;
+      foreach arg in (args) {
+	 check_astnode(arg);
+	 connect(prev, arg);
+	 var argnode = cfg_node("argument", arg); init_node(argnode);
+	 connect(arg, argnode);
+	 prev = argnode;
+      }
+      exprlist.entry = node;
+      exprlist.exits = [prev];
    }
    ("function_call" ("identifier" id) args) as stmt -> post {
       function_call(stmt, id, args);

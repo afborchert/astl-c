@@ -95,8 +95,7 @@ print rules {
    ("*" expr1 expr2) -> q{$expr1 * $expr2}
    ("/" expr1 expr2) -> q{$expr1 / $expr2}
    ("%" expr1 expr2) -> q{$expr1 % $expr2}
-   ("argument_expression_list" expr) -> q{$expr}
-   ("argument_expression_list" expr1 expr2) -> q{$expr1, $expr2}
+   ("argument_expression_list" expr...) -> q{$expr, $...}
 
    ("+" expr1 expr2) -> q{$expr1 + $expr2}
    ("-" expr1 expr2) -> q{$expr1 - $expr2}

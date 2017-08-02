@@ -123,7 +123,8 @@ state machine localptr: local_tracker (
    /* track invocations of free/cfree where our pointer variable
       is given */
    ("function_call" ("identifier" m{^c?free$})
-      ("argument_expression_list" ("identifier" varname) as id)) at call
+      ("argument_expression_list"
+	 ("expression" ("identifier" varname) as id))) at call
 	 where exists id.object && id.object == object
 	 when welldefined or nonnull -> freed
 	 when freed -> cut {

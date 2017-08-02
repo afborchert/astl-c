@@ -446,10 +446,20 @@ multiplicative_expression: cast_expression
       { $$ = BINARY(PERCENT, $1, $3); }
    ;
 
-argument_expression_list: assignment_expression
-      { $$ = UNARY(argument_expression_list, $1); }
-   | argument_expression_list COMMA assignment_expression
-      { $$ = BINARY(argument_expression_list, $1, $3); }
+argument_expression_list: argument_expression_list_items
+      {
+	 $$ = FLATTEN(NODE(argument_expression_list), $1,
+	    argument_expression_list_items);
+      }
+   ;
+
+argument_expression_list_items: assignment_expression
+      { $$ = UNARY(expression, $1); }
+   | argument_expression_list_items COMMA assignment_expression
+      {
+	 $$ = BINARY(argument_expression_list_items, $1,
+	    UNARY(expression, $3));
+      }
    ;
 
 assignment_expression: conditional_expression
