@@ -4,6 +4,7 @@
    note that we accept an initialization within the condition
    of the for loop */
 
+library "../../lib";
 import printer;
 
 attribution rules {
