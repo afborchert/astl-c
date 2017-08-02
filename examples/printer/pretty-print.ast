@@ -1,9 +1,15 @@
 #!../../astl-c/astl-c
 
+/* pretty printer of C with an conversion of K&R style to ISO style;
+   note that all comments are lost as they are not preserved in the
+   syntax tree */
+
 library "../../lib";
 import ops;
 import printer;
+import krstyle;
 
 sub main {
+   standardize_krstyle(root);
    println(gentext(root));
 }
