@@ -1667,7 +1667,7 @@ attribute_parameters: attribute_parameter
    ;
 
 attribute_parameter: assignment_expression
-      { $$ = UNARY(attribute_parameter, $1); }
+      { $$ = UNARY(attribute_parameter, UNARY(expression, $1)); }
    ;
 
 %%
