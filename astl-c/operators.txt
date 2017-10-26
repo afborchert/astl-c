@@ -12,6 +12,7 @@
 #------------------------------------------------------------------------------
 
 # keywords
+ALIGNOF:alignof
 AUTO:auto
 BREAK:break
 CASE:case

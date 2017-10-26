@@ -65,6 +65,8 @@ static struct {
    {"while", parser::token::WHILE},
    // common extensions to implement standard features
    {"__builtin_va_arg", parser::token::VA_ARG},
+   // C11 extensions (not yet complete)
+   {"_Alignof", parser::token::ALIGNOF},
    // gcc extensions and alternate keywords
    {"__alignof__", parser::token::ALIGNOF},
    {"asm", parser::token::ASM},
