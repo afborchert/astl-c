@@ -496,8 +496,8 @@ restart:
 // private methods ===========================================================
 
 /*
- * get next character from the input stream, if available:
- *  - pos gets updated (
+ * get next character from the input stream, if available;
+ * pos gets updated
  */
 void Scanner::nextch() {
    tokenloc.end = oldpos;
@@ -515,6 +515,9 @@ void Scanner::nextch() {
    ch = c;
    if (ch == '\n') {
       pos.lines();
+   } else if (ch == '\t') {
+      /* assume regular tab stop distance of 8 */
+      pos.columns(8 - (pos.column-1) % 8);
    } else {
       pos.columns();
    }

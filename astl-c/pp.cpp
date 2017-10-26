@@ -43,6 +43,7 @@ static int create_pipe(const std::string& cpp_path,
       const char** argv = new const char*[argc];
       int argi = 0;
       argv[argi++] = cpp_path.c_str();
+      argv[argi++] = "-traditional-cpp"; /* preserve whitespace */
       argv[argi++] = "-E";
       for (std::size_t i = 0; i < args.size(); ++i) {
 	 argv[argi++] = args[i].c_str();

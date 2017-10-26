@@ -171,9 +171,9 @@ external_declaration_list: external_declaration
    current scope;
    the scope is closed in the individual nonterminals below */
 external_declaration: function_definition semicolons
-      { $$ = UNARY(external_declaration, $1); }
+      { @$ = @1; $$ = UNARY(external_declaration, $1); }
    | extended_declaration semicolons
-      { $$ = UNARY(external_declaration, $1); }
+      { @$ = @1; $$ = UNARY(external_declaration, $1); }
    /* gcc extension for assembly instructions permits such
       instructions also at this level to permit "handwritten"
       .rodata declarations etc. */
@@ -193,6 +193,9 @@ function_definition: std_function_definition
    // support of K&R function style definitions without return types
    | symtab_open regular_direct_declarator compound_statement symtab_close
       {
+	 /* restrict location range to $2 .. $3 */
+	 @$.begin = @2.begin; @$.end = @3.end;
+
 	 $$ = BINARY(function_definition,
 		  BINARY(declaration,
 		     UNARY(declaration_specifiers,
@@ -207,6 +210,9 @@ function_definition: std_function_definition
    | symtab_open restricted_declaration_specifiers
 	 regular_direct_declarator compound_statement symtab_close
       {
+	 /* restrict location range to $2 .. $4 */
+	 @$.begin = @2.begin; @$.end = @4.end;
+
 	 $$ = BINARY(function_definition,
 		  BINARY(declaration,
 		     BINARY(declaration_specifiers, $2,
@@ -221,6 +227,9 @@ function_definition: std_function_definition
    | symtab_open regular_direct_declarator declaration_list
 	 compound_statement symtab_close
       {
+	 /* restrict location range to $2 .. $4 */
+	 @$.begin = @2.begin; @$.end = @4.end;
+
 	 $$ = TERTIARY(function_definition,
 		  BINARY(declaration,
 		     UNARY(declaration_specifiers,
@@ -236,6 +245,9 @@ function_definition: std_function_definition
 	 regular_direct_declarator declaration_list compound_statement
 	 symtab_close
       {
+	 /* restrict location range to $2 .. $5 */
+	 @$.begin = @2.begin; @$.end = @5.end;
+
 	 $$ = TERTIARY(function_definition,
 		  BINARY(declaration,
 		     BINARY(declaration_specifiers, $2,
@@ -264,6 +276,9 @@ std_function_definition: symtab_open extended_declaration_specifiers
    | symtab_open extended_declaration_specifiers declarator declaration_list
 	 compound_statement symtab_close
       {
+	 /* restrict location range to $2 .. $5 */
+	 @$.begin = @2.begin; @$.end = @5.end;
+
 	 $$ = TERTIARY(function_definition,
 	    BINARY(declaration, $2, UNARY(init_declarator_list,
 	       UNARY(init_declarator, $3))),
@@ -705,10 +720,18 @@ declaration: declaration_specifiers SEMICOLON
    declaration specifiers with gcc attributes */
 extended_declaration: symtab_open
 	 extended_declaration_specifiers SEMICOLON symtab_close
-      { $$ = UNARY(declaration, $2); } 	
+      {
+	 /* restrict location range to $2 .. $3 */
+	 @$.begin = @2.begin; @$.end = @3.end;
+
+	 $$ = UNARY(declaration, $2);
+      }
    | symtab_open extended_declaration_specifiers init_declarator_list
 	 SEMICOLON symtab_close
       {
+	 /* restrict location range to $2 .. $4 */
+	 @$.begin = @2.begin; @$.end = @4.end;
+
 	 $$ = BINARY(declaration, $2, $3);
 	 if (is_typedef($2)) {
 	    insert_idents(symtab, $3, SC_TYPE);
