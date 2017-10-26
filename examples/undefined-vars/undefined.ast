@@ -1,0 +1,78 @@
+#!../../astl-c/astl-c
+
+/*
+   check if variables of elementary types are properly initialized
+   before they are used
+*/
+
+library "../../lib";
+import ops;
+import printer;
+import symtab;
+import cfg;
+import sm;
+
+sub is_of_elementary_type(t) {
+   if (t.kind == "attributed") {
+      if (exists t.rtype) {
+	 return of_elemntary_type(t.rtype);
+      } else {
+	 return false;
+      }
+   }
+   return is_integer(t) || is_pointer(t) || is_real(t);
+}
+
+state machine localvar: local_tracker (undefined, initialized) {
+   shared var varname; /* name of the variable */
+   shared var block;   /* block where the variable was declared */
+   shared var object;  /* corresponding object in symbol table */
+
+   /* create new instance whenever a pointer variable is declared */
+   at vardecl
+	 where exists node.block && !node.object.static &&
+	 is_of_elementary_type(node.vartype) -> create {
+      varname = node.varname;
+      object = node.object;
+      block = node.block;
+   }
+
+   /* when a variable is initialized at its declaration
+      we do not need to pursue this any further */
+   at varinit_end where node.object == object -> cut
+
+   /* kill this instance when we are leaving the block
+      where this variable was declared */
+   at close_block where node.astnode == block -> close
+
+   ("=" lvalue rvalue) at assignment_end
+      where exists node.object && object == node.object -> initialized
+
+   /* track when the address of our variable is taken;
+      we go on then with the assumption that the variable may be
+      initialized through a pointer to it
+   */
+   ("address_of" ("identifier" varname) as id)
+      where exists id.object && id.object == object -> initialized
+
+   /* check other variable usages */
+   (updating_assignment_operators lvalue rvalue) as stmt at assignment_end
+      where exists node.object && object == node.object
+      when undefined -> cut {
+	 err(varname, ": updating an undefined variable in ", gentext(stmt));
+      }
+   ("identifier" varname) as id
+	 in ([assignment_operators] lvalue here) as stmt
+	 and ! in ("address_of" *) and ! in ("sizeof" *)
+      where exists id.object && id.object == object
+      when undefined -> cut {
+	 err(varname, ": using an undefined variable in ", gentext(stmt));
+      }
+   ("identifier" varname) as id
+	 ! in ([assignment_operators] *)
+	 and ! in ("address_of" *) and ! in ("sizeof" *)
+      where exists id.object && id.object == object
+      when undefined -> cut {
+	 err(varname, ": using an undefined variable");
+      }
+}
