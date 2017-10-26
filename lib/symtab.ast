@@ -919,7 +919,7 @@ attribution rules {
 	    t.signed = st.signed;
 	 }
       } else {
-	 if (!exists specifier.t) {
+	 if (!exists specifier.t || !defined(specifier.t)) {
 	    println("type specifier w/o type: ", gentext(specifier), " at ",
 	       location(specifier), " where op = ", operator(specifier));
 	    specifier.t = get_int_type(); // dummy FIXME
