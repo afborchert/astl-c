@@ -460,6 +460,9 @@ attribution rules {
    ("sizeof" a) as stmt where operator(a) != "type_name" -> post {
       terminal(stmt); /* the operand is not evaluated */
    }
+   ("alignof" type_or_lvalue) as stmt -> post {
+      terminal(stmt); /* the operand is not evaluated */
+   }
    ("cast_expression" t e) as stmt -> post {
       unary_operator(stmt, e);
    }
@@ -599,25 +602,30 @@ attribution rules {
    ("initializer" ("initializer_list" *) as list) as stmt -> post {
       wrap_node(stmt, list);
    }
-   ("initializer_list" initializer) as stmt -> post {
-      wrap_node(stmt, initializer);
-   }
-   ("initializer_list" initializer_list initializer) as stmt -> post {
-      check_astnode(initializer_list);
-      check_astnode(initializer);
-      connect(initializer_list, initializer);
-      stmt.entry = initializer_list.entry;
-      stmt.exits = initializer.exits;
-   }
-   ("initializer_list" initializer_list designation initializer)
-	 as stmt -> post {
-      check_astnode(initializer_list);
+   ("designated_initializer" designation initializer) as stmt -> post {
       check_astnode(designation);
       check_astnode(initializer);
-      connect(initializer_list, designation);
-      connect(designation, initializer);
-      stmt.entry = initializer_list.entry;
+      connect(initializer, designation);
+      stmt.entry = designation.entry;
       stmt.exits = initializer.exits;
+   }
+   ("initializer_list" initializer...) as stmt -> post {
+      if (len(initializer) == 1) {
+	 wrap_node(stmt, initializer[0]);
+      } else {
+	 var first; var last;
+	 foreach i in (initializer) {
+	    check_astnode(i);
+	    if (defined(last)) {
+	       connect(last, i);
+	    } else {
+	       first = i;
+	    }
+	    last = i;
+	 }
+	 stmt.entry = first.entry;
+	 stmt.exits = first.exits;
+      }
    }
    ("declaration" *) as stmt -> post {
       var prevnode;
