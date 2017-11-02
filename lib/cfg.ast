@@ -411,10 +411,7 @@ attribution rules {
    ("character_constant" val) as stmt -> post {
       terminal(stmt);
    }
-   ("string_literal" val) as stmt -> post {
-      terminal(stmt);
-   }
-   ("string_literal" s1 s2) as stmt -> post {
+   ("string_literal" val...) as stmt -> post {
       terminal(stmt);
    }
    ("identifier" id) as stmt -> post {
