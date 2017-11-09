@@ -305,7 +305,8 @@ attribution rules {
       graph.exit_functions = {};
       var exit_functions = [
 	 "abort",
-	 "__assert_c99", // actual abortion route for assert (gcc)
+	 /* actual assert functions come in multiple variants */
+	 "_assert", "__assert", "__assert_c99",
 	 "exit", "_exit", "_Exit"
       ];
       foreach exit_function in (exit_functions) {
