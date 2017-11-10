@@ -66,7 +66,7 @@ Astl-C represents a for loop with the exception of
 the trivial case `for(;;)` always as a syntax tree
 with the operator `"for"` and four operands representing
 the initialization, the condition, the increment, and
-the body of the loop. Following attribution rule would
+the body of the loop. Following attribution rules would
 match all for loops:
 
 ```
