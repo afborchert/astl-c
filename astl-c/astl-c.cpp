@@ -55,6 +55,16 @@ class SyntaxTreeGeneratorForC: public SyntaxTreeGenerator {
 	 symtab.insert(Symbol(SC_TYPE, "__label__"));
 	 symtab.open();
 
+	 /* which C preprocessor is to be taken? */
+	 const char* cpp = "gcc";
+	 if (std::strcmp(*argv, "--cpp") == 0) {
+	    --argc; ++argv;
+	    if (argc == 0) {
+	       throw Exception("argument for --cpp is missing");
+	    }
+	    cpp = *argv++; --argc;
+	 }
+
 	 /* multiple sources to be processed? */
 	 bool multiple_sources = false;
 	 std::size_t source_count = 0;
@@ -88,7 +98,7 @@ class SyntaxTreeGeneratorForC: public SyntaxTreeGenerator {
 	    }
 	    /* end this if we are running out of arguments */
 	    if (argc == 0) {
-	       if (source_count > 0) {
+	       if (multiple_sources && source_count > 0) {
 		  throw Exception("closing --sources-- is missing");
 	       } else {
 		  throw Exception("no source file given");
@@ -112,7 +122,7 @@ class SyntaxTreeGeneratorForC: public SyntaxTreeGenerator {
 	    args.push_back("-D__extension__=");
 
 	    /* pass the source through the preprocessor */
-	    cpp_istream source("gcc", args, source_name);
+	    cpp_istream source(cpp, args, source_name);
 	    if (!source) {
 	       std::ostringstream os;
 	       os << "unable to open " << source_name << " for reading";
@@ -189,11 +199,11 @@ astl-c -- run Astl scripts for C99 sources
 
 =head1 SYNOPSIS
 
-B<astl-c> F<astl-script> [gcc preprocessor options...] F<C-source> [I<args>]
+B<astl-c> F<astl-script> [B<--cpp> preprocessor] [gcc preprocessor options...] F<C-source> [I<args>]
 
-B<astl-c> F<astl-script> [B<--cpp--> gcc preprocessor options... B<--cpp-->] F<C-source> [I<args>]
+B<astl-c> F<astl-script> [B<--cpp> preprocessor] [B<--cpp--> gcc preprocessor options... B<--cpp-->] F<C-source> [I<args>]
 
-B<astl-c> F<astl-script> B<--sources--> sources and gcc preprocessor options B<--sources--> [I<args>]
+B<astl-c> F<astl-script> [B<--cpp> preprocessor] B<--sources--> sources and gcc preprocessor options B<--sources--> [I<args>]
 
 =head1 DESCRIPTION
 
@@ -205,8 +215,11 @@ or implicitly using a shebang line in the first line of the script:
 The construct using F</usr/bin/env> attempts to find F<astl-c>
 anywhere in the user's path.
 
-F<astl-c> invokes first the preprocessor of I<gcc> with the
-given preprocessor options. If some of the preprocessor options
+F<astl-c> invokes first the preprocessor with the
+given preprocessor options. By default, I<gcc> is taken but the
+option B<--cpp> can be used to specify an another preprocessor
+which should support B<-E> and other common preprocessor options.
+If some of the preprocessor options
 do not begin with a `-' character, the whole set of gcc preprocessor
 options needs to be enclosed in ``--cpp--'' .. ``--cpp--''.
 
@@ -267,6 +280,17 @@ F</usr/share/astl/C> are used. The script itself can add more
 directories to the library search path using the Astl
 library clause (see section 12.1 in the I<Report of the
 Astl Programming Language>).
+
+=head1 BUGS
+
+In its lexical analysis, F<astl-c> tries to record the exact
+source locations of all tokens. This is, however, limited as
+the preprocessor of F<gcc> does not preserve the correct
+spacing even for input lines which otherwise remain untouched.
+One option is to use the preprocessor option F<-traditional-cpp>
+which preserves spacing to the extent possible but which unfortunately
+does not support preprocessor features of ISO C like stringify
+operators.
 
 =head1 AUTHOR
 
