@@ -43,7 +43,7 @@ the else-part. Variables can be introduced and bound to subnodes.
 In this case, `cond` and `then` are bound to the first two subnodes
 of the outer `"if"` node, and `if_stmt` to the `"if"` node itself.
 These bound variables can be used within the following block. In
-this example, `if_stmt` is passed to the built function `location`
+this example, `if_stmt` is passed to the built-in function `location`
 which returns a string specifying the source location of the
 entire if-statement.
 
