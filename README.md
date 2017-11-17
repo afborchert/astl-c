@@ -26,16 +26,29 @@ attribution rules {
 }
 ```
 
-So-called attribution rules consist of a collection of
-tree expressions followed by a block which is executed
-for each matching tree expression. The tree expressions
-are considered during an implicitly executed traverse of
-the syntax tree in depth-first order (by default in
-preorder but this can be changed per individual rule).
+A so-called attribution rule consists of a tree expression followed by a
+block which is executed for each matching tree expression. Any number of
+attribution rules can be specified within an _attribution rules_ section.
+The tree expressions of the attribution rules are considered during an
+implicitly executed traverse of the syntax tree in depth-first order (by
+default in preorder but this can be changed per individual rule).
 
-Add a hash-bang-header to it, i.e. '#!', followed by
-the path to astl-c, make it executable, and run it with
-all the source files:
+Tree expressions are set in parentheses. In their simplest form,
+they specify an operator as string (`"if"` in the example above),
+followed by tree expressions for the direct subnodes. An `"if"`
+syntax node has two or three subnodes, the first represents the
+condition, the second represents the statement to be executed
+when the condition is true and the optional third subnode represents
+the else-part. Variables can be introduced and bound to subnodes.
+In this case, `cond` and `then` are bound to the first two subnodes
+of the outer `"if"` node, and `if_stmt` to the `"if"` node itself.
+These bound variables can be used within the following block. In
+this example, `if_stmt` is passed to the built function `location`
+which returns a string specifying the source location of the
+entire if-statement.
+
+Add a hash-bang-header to it, i.e. '#!', followed by the path to astl-c,
+make it executable, and run it with all the source files:
 
 ```
 $ misra-1410.ast example.c
