@@ -78,8 +78,13 @@ sub init_node(node) {
    push(graph.nodes, node);
 }
 
-sub create_node {
-   var node = cfg_node(args[0]); init_node(node);
+sub create_node(astnode) {
+   var node = cfg_node(astnode); init_node(node);
+   return node;
+}
+
+sub create_tagged_node(tag, astnode) {
+   var node = cfg_node(tag, astnode); init_node(node);
    return node;
 }
 
@@ -815,7 +820,7 @@ attribution rules {
 
    // return statements
    ("return") as stmt in ("function_definition" *) as fdef -> {
-      var node = create_node(stmt);
+      var node = create_tagged_node("return_stmt", stmt);
       stmt.entry = node;
       stmt.exits = [];
       cfg_connect(node, fdef.exit);
@@ -823,7 +828,7 @@ attribution rules {
    ("return" expr) as stmt in ("function_definition" *) as fdef -> post {
       stmt.entry = expr.entry;
       stmt.exits = [];
-      var node = create_node(stmt);
+      var node = create_tagged_node("return_stmt", stmt);
       connect(expr, node);
       cfg_connect(node, fdef.exit);
    }
