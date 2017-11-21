@@ -615,6 +615,8 @@ attribution rules {
    ("initializer_list" initializer...) as stmt -> post {
       if (len(initializer) == 1) {
 	 wrap_node(stmt, initializer[0]);
+      } elsif (len(initializer) == 0) {
+	 terminal(stmt);
       } else {
 	 var first; var last;
 	 foreach i in (initializer) {
@@ -627,7 +629,7 @@ attribution rules {
 	    last = i;
 	 }
 	 stmt.entry = first.entry;
-	 stmt.exits = first.exits;
+	 stmt.exits = last.exits;
       }
    }
    ("declaration" *) as stmt -> post {
