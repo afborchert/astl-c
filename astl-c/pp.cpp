@@ -26,7 +26,7 @@
 namespace AstlC {
 
 static int create_pipe(const std::string& cpp_path,
-      const Args& args, const std::string& input_file) throw(Astl::Exception) {
+      const Args& args, const std::string& input_file) {
    int fds[2];
    if (pipe(fds) < 0) {
       throw Astl::Exception("unable to create a pipe");
@@ -57,7 +57,7 @@ static int create_pipe(const std::string& cpp_path,
 }
 
 cpp_istream::cpp_istream(const std::string& cpp_path,
-      const Args& args, const std::string& input_file) throw(Astl::Exception) :
+      const Args& args, const std::string& input_file) :
    fdistream(create_pipe(cpp_path, args, input_file)
 #if BOOST_VERSION >= 104601
       , boost::iostreams::close_handle

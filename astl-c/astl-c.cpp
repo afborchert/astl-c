@@ -40,7 +40,7 @@ using namespace AstlC;
 
 class SyntaxTreeGeneratorForC: public SyntaxTreeGenerator {
    public:
-      virtual NodePtr gen(int& argc, char**& argv) throw(Exception) {
+      virtual NodePtr gen(int& argc, char**& argv) {
 	 Args args;
 	 if (argc == 0) {
 	    throw Exception("no source file given");

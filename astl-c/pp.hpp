@@ -35,8 +35,7 @@ namespace AstlC {
    class cpp_istream: public fdistream {
       public:
 	 cpp_istream(const std::string& cpp_path,
-	    const Args& args, const std::string& input_file)
-	    throw(Astl::Exception);
+	    const Args& args, const std::string& input_file);
    };
 
 } // namespace AstlC
