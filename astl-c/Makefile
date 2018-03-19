@@ -72,7 +72,7 @@ parser.tab.o: parser.tab.cpp ../astl/astl/syntax-tree.hpp \
  ../astl/astl/builtin-functions.hpp ../astl/astl/integer.hpp \
  ../astl/astl/context.hpp ../astl/astl/operator.hpp \
  ../astl/astl/token.hpp operators.hpp scanner.hpp parser.hpp location.hpp \
- position.hh location.hh symtable.hpp symbol.hpp scope.hpp yystype.hpp \
+ position.hh location.hh symtable.hpp scope.hpp symbol.hpp yystype.hpp \
  parser.tab.hpp stack.hh yytname.hpp
 parser.tab.o: parser.tab.hpp stack.hh location.hh position.hh
 yytname.o: yytname.cpp
@@ -81,8 +81,8 @@ operators.o: operators.cpp ../astl/astl/operator.hpp \
 error.o: error.cpp error.hpp parser.hpp location.hpp \
  ../astl/astl/treeloc.hpp ../astl/astl/location.hpp \
  ../astl/astl/position.hh ../astl/astl/location.hh \
- ../astl/astl/position.hh position.hh location.hh symtable.hpp symbol.hpp \
- scope.hpp yystype.hpp ../astl/astl/syntax-tree.hpp \
+ ../astl/astl/position.hh position.hh location.hh symtable.hpp scope.hpp \
+ symbol.hpp yystype.hpp ../astl/astl/syntax-tree.hpp \
  ../astl/astl/attribute.hpp ../astl/astl/exception.hpp \
  ../astl/astl/function.hpp ../astl/astl/arity.hpp \
  ../astl/astl/bindings.hpp ../astl/astl/types.hpp \
@@ -97,14 +97,14 @@ scanner.o: scanner.cpp ../astl/astl/syntax-tree.hpp \
  ../astl/astl/arity.hpp ../astl/astl/bindings.hpp ../astl/astl/types.hpp \
  ../astl/astl/builtin-functions.hpp ../astl/astl/integer.hpp \
  ../astl/astl/context.hpp ../astl/astl/operator.hpp \
- ../astl/astl/token.hpp error.hpp parser.hpp location.hpp position.hh \
- location.hh symtable.hpp symbol.hpp scope.hpp yystype.hpp parser.tab.hpp \
- stack.hh keywords.hpp scanner.hpp
+ ../astl/astl/token.hpp ../astl/astl/utf8.hpp error.hpp parser.hpp \
+ location.hpp position.hh location.hh symtable.hpp scope.hpp symbol.hpp \
+ yystype.hpp parser.tab.hpp stack.hh keywords.hpp scanner.hpp
 testlex.o: testlex.cpp ../astl/astl/token.hpp location.hpp \
  ../astl/astl/treeloc.hpp ../astl/astl/location.hpp \
  ../astl/astl/position.hh ../astl/astl/location.hh \
  ../astl/astl/position.hh position.hh location.hh parser.hpp symtable.hpp \
- symbol.hpp scope.hpp yystype.hpp ../astl/astl/syntax-tree.hpp \
+ scope.hpp symbol.hpp yystype.hpp ../astl/astl/syntax-tree.hpp \
  ../astl/astl/attribute.hpp ../astl/astl/exception.hpp \
  ../astl/astl/function.hpp ../astl/astl/arity.hpp \
  ../astl/astl/bindings.hpp ../astl/astl/types.hpp \
@@ -114,8 +114,8 @@ testlex.o: testlex.cpp ../astl/astl/token.hpp location.hpp \
 keywords.o: keywords.cpp scanner.hpp parser.hpp location.hpp \
  ../astl/astl/treeloc.hpp ../astl/astl/location.hpp \
  ../astl/astl/position.hh ../astl/astl/location.hh \
- ../astl/astl/position.hh position.hh location.hh symtable.hpp symbol.hpp \
- scope.hpp yystype.hpp ../astl/astl/syntax-tree.hpp \
+ ../astl/astl/position.hh position.hh location.hh symtable.hpp scope.hpp \
+ symbol.hpp yystype.hpp ../astl/astl/syntax-tree.hpp \
  ../astl/astl/attribute.hpp ../astl/astl/exception.hpp \
  ../astl/astl/function.hpp ../astl/astl/arity.hpp \
  ../astl/astl/bindings.hpp ../astl/astl/types.hpp \
@@ -126,7 +126,7 @@ testparser.o: testparser.cpp ../astl/astl/token.hpp location.hpp \
  ../astl/astl/treeloc.hpp ../astl/astl/location.hpp \
  ../astl/astl/position.hh ../astl/astl/location.hh \
  ../astl/astl/position.hh position.hh location.hh parser.hpp symtable.hpp \
- symbol.hpp scope.hpp yystype.hpp ../astl/astl/syntax-tree.hpp \
+ scope.hpp symbol.hpp yystype.hpp ../astl/astl/syntax-tree.hpp \
  ../astl/astl/attribute.hpp ../astl/astl/exception.hpp \
  ../astl/astl/function.hpp ../astl/astl/arity.hpp \
  ../astl/astl/bindings.hpp ../astl/astl/types.hpp \
@@ -140,7 +140,7 @@ testlex.o: testlex.cpp ../astl/astl/token.hpp location.hpp \
  ../astl/astl/treeloc.hpp ../astl/astl/location.hpp \
  ../astl/astl/position.hh ../astl/astl/location.hh \
  ../astl/astl/position.hh position.hh location.hh parser.hpp symtable.hpp \
- symbol.hpp scope.hpp yystype.hpp ../astl/astl/syntax-tree.hpp \
+ scope.hpp symbol.hpp yystype.hpp ../astl/astl/syntax-tree.hpp \
  ../astl/astl/attribute.hpp ../astl/astl/exception.hpp \
  ../astl/astl/function.hpp ../astl/astl/arity.hpp \
  ../astl/astl/bindings.hpp ../astl/astl/types.hpp \
@@ -151,7 +151,7 @@ testparser.o: testparser.cpp ../astl/astl/token.hpp location.hpp \
  ../astl/astl/treeloc.hpp ../astl/astl/location.hpp \
  ../astl/astl/position.hh ../astl/astl/location.hh \
  ../astl/astl/position.hh position.hh location.hh parser.hpp symtable.hpp \
- symbol.hpp scope.hpp yystype.hpp ../astl/astl/syntax-tree.hpp \
+ scope.hpp symbol.hpp yystype.hpp ../astl/astl/syntax-tree.hpp \
  ../astl/astl/attribute.hpp ../astl/astl/exception.hpp \
  ../astl/astl/function.hpp ../astl/astl/arity.hpp \
  ../astl/astl/bindings.hpp ../astl/astl/types.hpp \
@@ -168,7 +168,7 @@ run.o: run.cpp ../astl/astl/run.hpp ../astl/astl/exception.hpp \
  ../astl/astl/bindings.hpp ../astl/astl/builtin-functions.hpp \
  ../astl/astl/integer.hpp ../astl/astl/context.hpp \
  ../astl/astl/operator.hpp ../astl/astl/token.hpp scanner.hpp parser.hpp \
- location.hpp position.hh location.hh symtable.hpp symbol.hpp scope.hpp \
+ location.hpp position.hh location.hh symtable.hpp scope.hpp symbol.hpp \
  yystype.hpp parser.tab.hpp stack.hh yytname.hpp operators.hpp pp.hpp
 astl-c.o: astl-c.cpp ../astl/astl/run.hpp ../astl/astl/exception.hpp \
  ../astl/astl/treeloc.hpp ../astl/astl/location.hpp \
@@ -180,5 +180,5 @@ astl-c.o: astl-c.cpp ../astl/astl/run.hpp ../astl/astl/exception.hpp \
  ../astl/astl/bindings.hpp ../astl/astl/builtin-functions.hpp \
  ../astl/astl/integer.hpp ../astl/astl/context.hpp \
  ../astl/astl/operator.hpp ../astl/astl/token.hpp scanner.hpp parser.hpp \
- location.hpp position.hh location.hh symtable.hpp symbol.hpp scope.hpp \
+ location.hpp position.hh location.hh symtable.hpp scope.hpp symbol.hpp \
  yystype.hpp parser.tab.hpp stack.hh yytname.hpp operators.hpp pp.hpp
