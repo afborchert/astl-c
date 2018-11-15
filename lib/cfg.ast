@@ -810,6 +810,15 @@ attribution rules {
       connect(node, case_stmt);
       push(switch.cases, node);
    }
+   /* gcc extension: case range, see
+      http://gcc.gnu.org/onlinedocs/gcc/Case-Ranges.html */
+   ("case" expr1 expr2 case_stmt) as stmt in ("switch" *) as switch -> post {
+      var node = create_node(stmt);
+      stmt.entry = node;
+      stmt.exits = case_stmt.exits;
+      connect(node, case_stmt);
+      push(switch.cases, node);
+   }
    ("default" case_stmt) as stmt in ("switch" *) as switch -> post {
       var node = create_node(stmt);
       stmt.entry = node;
