@@ -892,8 +892,6 @@ attribution rules {
       fdef.goto = {};
       fdef.unresolved_gotos = {};
       fdef.vars = {};
-      var labeled;
-      var search;
    }
    ("function_definition" declaration block) as fdef -> post {
       var id;
