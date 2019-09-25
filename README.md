@@ -358,12 +358,7 @@ C++14 support, GMP, _pcre2_, and _boost_ libraries:
 (cd astl-c && make)
 ```
 
-Documentation for Astl can also be obtained:
-
-```
-(cd astl/refman && make)
-```
-
-This requires TeX and some other tools.
+A [reference manual of the Astl programming language](https://github.com/afborchert/astl/blob/master/refman/astl-refman.pdf) is included in the _astl/refman_
+subdirectory.
 
 Some examples are to be found in the _examples_ subdirectory.
