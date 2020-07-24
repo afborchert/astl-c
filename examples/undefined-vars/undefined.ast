@@ -15,7 +15,7 @@ import sm;
 sub is_of_elementary_type(t) {
    if (t.kind == "attributed") {
       if (exists t.rtype) {
-	 return of_elemntary_type(t.rtype);
+	 return is_of_elementary_type(t.rtype);
       } else {
 	 return false;
       }
