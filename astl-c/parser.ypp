@@ -1681,7 +1681,7 @@ attribute: /* empty */
 attribute_name: IDENT
       { $$ = UNARY(attribute_name, $1); }
    | CONST
-      { $$ = UNARY(attribute_name, $1); }
+      { $$ = UNARY(attribute_name, NODE(CONST)); }
    ;
 
 attribute_parameters: attribute_parameter
