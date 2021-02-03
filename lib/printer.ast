@@ -647,4 +647,5 @@ print rules {
    ("attribute_name" ident) -> q{$ident}
    ("attribute_parameters" parameter...) -> q{$parameter, $...}
    ("attribute_parameter" expr) -> q{$expr}
+   ("const") -> q{const} /* used for const attributes */
 }
