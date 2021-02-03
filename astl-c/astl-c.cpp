@@ -133,7 +133,7 @@ class SyntaxTreeGeneratorForC: public SyntaxTreeGenerator {
 	    std::unique_ptr<std::locale> locale = nullptr;
 	    try {
 	       locale = std::make_unique<std::locale>("");
-	    } catch (std::runtime_error) {
+	    } catch (std::runtime_error&) {
 	       locale = nullptr;
 	    }
 	    if (locale) source.imbue(*locale);
@@ -182,7 +182,7 @@ int main(int argc, char** argv) {
 	 loader.add_library("/usr/share/astl/C");
       }
       run(argc, argv, astgen, loader, Op::LPAREN);
-   } catch (Exception e) {
+   } catch (Exception& e) {
       cout << endl;
       cerr << e.what() << endl;
    } catch (std::exception& e) {

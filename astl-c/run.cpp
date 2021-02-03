@@ -93,7 +93,7 @@ int main(int argc, char** argv) {
       if (p.parse() != 0) exit(1);
 
       run(root, rules_name, pattern, count, Op::LPAREN, cout);
-   } catch (Exception e) {
+   } catch (Exception& e) {
       cout << endl;
       cerr << e.what() << endl;
    }

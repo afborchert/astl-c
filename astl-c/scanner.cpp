@@ -741,7 +741,7 @@ void Scanner::convert_to_utf8() {
 	    ++len;
 	 }
 	 #pragma GCC diagnostic pop
-      } catch (utf8_error) {
+      } catch (utf8_error&) {
 	 valid = false;
       }
       if (!valid) {

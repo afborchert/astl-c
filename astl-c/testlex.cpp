@@ -42,7 +42,7 @@ int main(int argc, char** argv) {
    std::unique_ptr<std::locale> locale = nullptr;
    try {
       locale = std::make_unique<std::locale>("");
-   } catch (std::runtime_error) {
+   } catch (std::runtime_error&) {
       locale = nullptr;
    }
 
