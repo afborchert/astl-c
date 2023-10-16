@@ -178,8 +178,12 @@ int main(int argc, char** argv) {
 	 if (dir) loader.add_library(dir);
       } else {
 	 // default path
-	 loader.add_library("/usr/local/share/astl/C");
-	 loader.add_library("/usr/share/astl/C");
+         #ifdef ASTL_C_LIBDIR
+	    loader.add_library(ASTL_C_LIBDIR);
+         #else
+	    loader.add_library("/usr/local/share/astl/astl");
+	    loader.add_library("/usr/share/astl/astl");
+	 #endif
       }
       run(argc, argv, astgen, loader, Op::LPAREN);
    } catch (Exception& e) {
@@ -275,8 +279,9 @@ assignment found within a condition:
 
 The environment variable I<ASTL_C_PATH> can be used to specify
 a colon-separated list of directories where library modules
-are looked for. By default, F</usr/local/share/astl/C> and
-F</usr/share/astl/C> are used. The script itself can add more
+are looked for. Otherwise, some installation-dependent directories
+are used. By default, these are F</usr/local/share/astl/C> and
+F</usr/share/astl/C>. The script itself can add more
 directories to the library search path using the Astl
 library clause (see section 12.1 in the I<Report of the
 Astl Programming Language>).
