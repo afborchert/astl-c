@@ -25,9 +25,12 @@ namespace AstlC {
 
 } // namespace AstlC
 
+#include <astl/syntax-tree.hpp>
+
 #include "location.hpp"
 #include "symtable.hpp"
-#include "yystype.hpp"
+
+/* parser.tab.hpp is to be included last */
 #include "parser.tab.hpp"
 
 #endif

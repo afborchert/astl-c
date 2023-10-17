@@ -26,12 +26,13 @@ namespace AstlC {
 #include <cassert>
 #include <memory>
 #include <string>
+
 #include <astl/syntax-tree.hpp>
+
 #include "operators.hpp"
 #include "scanner.hpp"
 #include "symbol.hpp"
 #include "symtable.hpp"
-#include "yystype.hpp"
 #include "yytname.hpp"
 
 using namespace Astl;
@@ -84,6 +85,7 @@ NodePtr flatten_right(NodePtr node, NodePtr subnodes, const Operator& op);
 %skeleton "lalr1.cc"
 %define api.prefix {astlc}
 %define api.namespace { AstlC }
+%define api.value.type { Astl::NodePtr }
 %defines
 %verbose
 %locations
